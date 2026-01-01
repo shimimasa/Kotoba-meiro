@@ -12,39 +12,31 @@ export function createEngine(opts: {
   hintEnabled: boolean;
   onExit?: () => void;
 }): Engine {
-  const { canvas, hintEnabled } = opts;
-
   const state: GameState = {
-    hintEnabled,
+    hintEnabled: opts.hintEnabled,
     running: true,
   };
 
-  const renderer = createRenderer(canvas, state);
+  const renderer = createRenderer(opts.canvas, state);
 
-  // resize（最小）
-  const resize = () => {
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    renderer.onResize();
-  };
-  resize();
-  window.addEventListener("resize", resize);
+  const handleResize = () => renderer.onResize();
+  window.addEventListener("resize", handleResize);
+  renderer.onResize();
 
   return {
-    update(dt) {
+    update(_dt: number) {
+      // ここに順次、input / movement / collision を入れていく
       if (!state.running) return;
-      // TODO: input/movement/collision などをここに追加
-      void dt;
     },
     render() {
       renderer.render();
     },
     dispose() {
       state.running = false;
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", handleResize);
       renderer.dispose();
     },
   };
 }
+
+

@@ -1,25 +1,52 @@
 import type { GameState } from "../engine/state";
 
 export function createRenderer(canvas: HTMLCanvasElement, state: GameState) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("2D context not available");
+  const ctxMaybe = canvas.getContext("2d");
+  if (!ctxMaybe) throw new Error("2D context not available");
+
+  // ★ ここがポイント：narrowing後の値を別constに束縛（これでnull警告が消える）
+  const ctx = ctxMaybe;
+
+  const getDpr = () => window.devicePixelRatio || 1;
+
+  function resizeToDisplaySize() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = getDpr();
+
+    const nextW = Math.max(1, Math.floor(rect.width * dpr));
+    const nextH = Math.max(1, Math.floor(rect.height * dpr));
+
+    if (canvas.width !== nextW) canvas.width = nextW;
+    if (canvas.height !== nextH) canvas.height = nextH;
+  }
+
+  function renderDebug() {
+    // CSSピクセルで描画（setTransformでDPRを吸収）
+    const rect = canvas.getBoundingClientRect();
+    const dpr = getDpr();
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    ctx.font = "16px system-ui, sans-serif";
+    ctx.fillStyle = "#111";
+    ctx.fillText("ことばめいろ / Renderer OK", 12, 28);
+
+    ctx.fillStyle = "#444";
+    ctx.fillText(`Hint: ${state.hintEnabled ? "ON" : "OFF"}`, 12, 52);
+  }
 
   return {
     onResize() {
-      // いまは特に何もしない
+      resizeToDisplaySize();
     },
     render() {
-      // 背景
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // デバッグ表示
-      ctx.save();
-      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-      ctx.font = "16px system-ui, sans-serif";
-      ctx.fillText("ことばめいろ / Engine boot OK", 12, 28);
-      ctx.fillText(`Hint: ${state.hintEnabled ? "ON" : "OFF"}`, 12, 52);
-      ctx.restore();
+      resizeToDisplaySize();
+      renderDebug();
     },
-    dispose() {},
+    dispose() {
+      // 今は特になし
+    },
   };
 }
+
