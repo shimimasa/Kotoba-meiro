@@ -32,6 +32,18 @@ import { lv1Templates } from "../maze/templates/lv1";
   const checkpoints = plan.letters.map((l) => l.pos);
   const routeRes = buildRoute(analyzed.walkable, analyzed.start, checkpoints, analyzed.goal);
 
+  // --- pellets init（'.' のみ true。S/G/文字は置かない）
+  const pellets: boolean[][] = Array.from({ length: analyzed.h }, () =>
+      Array.from({ length: analyzed.w }, () => false)
+    );
+    for (let y = 0; y < analyzed.h; y++) {
+      const row = analyzed.grid[y];
+      for (let x = 0; x < analyzed.w; x++) {
+        const c = row[x];
+        if (c === ".") pellets[y][x] = true;
+      }
+    }
+
   state.maze = {
     w: analyzed.w,
     h: analyzed.h,
@@ -41,6 +53,8 @@ import { lv1Templates } from "../maze/templates/lv1";
     goal: analyzed.goal,
     letters: plan.letters,
     route: routeRes.ok ? { path: routeRes.path, length: routeRes.length } : undefined,
+    pellets,
+    score: 0,
     player: { ...analyzed.start, dir: "right" },
     nextLetterIndex: 0,
   };
@@ -68,6 +82,12 @@ import { lv1Templates } from "../maze/templates/lv1";
     if (!state.maze.walkable[ny][nx]) return;
     state.maze.player = { ...state.maze.player, x: nx, y: ny };
     movedThisFrame = true;
+
+    // ペレットを食べる
+    if (state.maze.pellets[ny]?.[nx]) {
+        state.maze.pellets[ny][nx] = false;
+        state.maze.score += 1;
+      }
 
     // 文字取得判定
     const next = state.maze.letters[state.maze.nextLetterIndex];

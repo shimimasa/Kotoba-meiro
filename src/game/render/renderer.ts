@@ -77,6 +77,23 @@ export function createRenderer(canvas: HTMLCanvasElement, state: GameState) {
           ctx.fillRect(px, py, cell, cell);
         }
       }
+
+    // ペレット（残っているものだけ）
+    if (m.pellets) {
+      ctx.fillStyle = "rgba(0,0,0,0.18)";
+      const r = Math.max(1, cell * 0.06);
+      for (let y = 0; y < m.h; y++) {
+        for (let x = 0; x < m.w; x++) {
+          if (!m.pellets[y]?.[x]) continue;
+          const cx = ox + x * cell + cell / 2;
+          const cy = oy + y * cell + cell / 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
     }
 
     // ゴール
@@ -162,11 +179,7 @@ export function createRenderer(canvas: HTMLCanvasElement, state: GameState) {
     ctx.font = "13px system-ui";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(
-      `progress: ${m.nextLetterIndex}/${m.letters.length}  hint:${state.hintEnabled ? "ON" : "OFF"}`,
-      12,
-      12
-    );
+    ctx.fillText(`progress: ${m.nextLetterIndex}/${m.letters.length}  score:${m.score ?? 0}  hint:${state.hintEnabled ? "ON" : "OFF"}`, 12, 12);
   }
 
   return {
