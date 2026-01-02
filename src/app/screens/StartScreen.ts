@@ -1,6 +1,18 @@
 import type { Router } from "../router";
+import { createSfx } from "../../game/audio/sfx";
+
+const sfx = createSfx();
+
 
 export function StartScreen(router: Router): HTMLElement {
+  const startButton = document.createElement("button");
+  startButton.textContent = "はじめる";
+  startButton.style.padding = "12px 18px";
+  startButton.onclick = async () => {
+    sfx.unlock();
+    router.go("game");
+  };
+
   const wrap = document.createElement("div");
   wrap.style.display = "grid";
   wrap.style.placeItems = "center";
