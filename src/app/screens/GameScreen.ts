@@ -17,28 +17,34 @@ export function GameScreen(router: Router): HTMLElement {
   top.style.padding = "10px 12px";
   top.style.borderBottom = "1px solid rgba(0,0,0,0.1)";
 
-  const left = document.createElement("button");
-  left.textContent = "← もどる";
-  left.onclick = () => router.go("start");
+  const backBtn = document.createElement("button");
+  backBtn.textContent = "← もどる";
+  backBtn.style.padding = "8px 12px";
+  backBtn.style.borderRadius = "10px";
+  backBtn.style.border = "1px solid rgba(0,0,0,0.15)";
+  backBtn.style.background = "white";
+  backBtn.style.cursor = "pointer";
+  backBtn.onclick = () => router.go("start");
 
-  const hint = document.createElement("div");
-  hint.style.fontSize = "14px";
-  hint.style.opacity = "0.85";
-  hint.textContent = router.getSettings().hintEnabled ? "ヒント：ON" : "ヒント：OFF";
+  const hintLabel = document.createElement("div");
+  hintLabel.style.fontSize = "14px";
+  hintLabel.style.opacity = "0.85";
+  hintLabel.textContent = router.getSettings().hintEnabled ? "ヒント：ON" : "ヒント：OFF";
 
-  top.append(left, hint);
+  top.append(backBtn, hintLabel);
 
   // --- main
   const main = document.createElement("div");
   main.style.position = "relative";
   main.style.overflow = "hidden";
+  main.style.background = "#f7f7f7";
 
-  // ✅ canvasはここで1回だけ作る
+  // canvas（1回だけ）
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.display = "block";
-  canvas.style.touchAction = "none"; // スワイプ等の入力を妨げない
+  canvas.style.touchAction = "none";
   canvas.setAttribute("aria-label", "game canvas");
 
   main.appendChild(canvas);
@@ -55,11 +61,10 @@ export function GameScreen(router: Router): HTMLElement {
 
   const stop = startLoop(engine);
 
-  // ✅ removeイベントは当てにならないので、DOMから外れたら止める
-  const cleanup = () => stop();
+  // DOMから外れたら止める（removeイベントは信用しない）
   const mo = new MutationObserver(() => {
     if (!wrap.isConnected) {
-      cleanup();
+      stop();
       mo.disconnect();
     }
   });
@@ -67,3 +72,4 @@ export function GameScreen(router: Router): HTMLElement {
 
   return wrap;
 }
+
