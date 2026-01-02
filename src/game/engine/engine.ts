@@ -71,6 +71,8 @@ import { createSfx } from "../audio/sfx";
   // --- Input (arrow/WASD)
   const onKeyDown = (e: KeyboardEvent) => {
     if (!state.running || !state.maze) return;
+    // 初回操作で音声ロック解除を試す
+    sfx.unlock();
     const k = e.key.toLowerCase();
     let dx = 0, dy = 0;
     if (k === "arrowup" || k === "w") { dy = -1; state.maze.player.dir = "up"; }
