@@ -93,7 +93,23 @@ export function createRenderer(canvas: HTMLCanvasElement, state: GameState) {
         }
       }
     }
-
+ 
+    // ペレットを食べた瞬間のフラッシュ（0.2秒）
+    if (m.lastEat) {
+        const { x, y, t } = m.lastEat;
+        const cx = ox + x * cell + cell / 2;
+        const cy = oy + y * cell + cell / 2;
+  
+        // t: 0 → 0.2 で 1 → 0 に落ちる
+        const p = Math.max(0, 1 - t / 0.2);
+        const rr = cell * (0.16 + 0.10 * (1 - p)); // 少し拡散
+        const a = 0.35 * p; // 徐々に消える
+  
+        ctx.fillStyle = `rgba(255, 215, 0, ${a})`; // 金色っぽい光
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // ゴール

@@ -5,7 +5,8 @@ import { analyzeTemplate } from "../maze/analyzeTemplate";
 import { planSpawns } from "../maze/spawnPlanner";
 import { buildRoute } from "../maze/path";
 import { lv1Templates } from "../maze/templates/lv1";
- 
+import { createSfx } from "../audio/sfx";
+
  export type Engine = {
    update: (dt: number) => void;
    render: () => void;
@@ -24,7 +25,10 @@ import { lv1Templates } from "../maze/templates/lv1";
  
    // renderer（型が揺れてもいいように any 扱い）
    const renderer: any = createRenderer(opts.canvas, state as any);
- 
+
+   // sfx
+   const sfx = createSfx();
+
   // --- Maze init (Lv1テンプレの先頭を使用)
   const template = lv1Templates[0];
   const analyzed = analyzeTemplate(template);
@@ -87,12 +91,15 @@ import { lv1Templates } from "../maze/templates/lv1";
     if (state.maze.pellets[ny]?.[nx]) {
         state.maze.pellets[ny][nx] = false;
         state.maze.score += 1;
+        state.maze.lastEat = { x: nx, y: ny, t: 0 };
+        sfx.pellet();
       }
 
     // 文字取得判定
     const next = state.maze.letters[state.maze.nextLetterIndex];
     if (next && next.pos.x === nx && next.pos.y === ny) {
       state.maze.nextLetterIndex++;
+      sfx.kana();
     }
 
     // ゴール判定（全取得 + G）
@@ -100,6 +107,7 @@ import { lv1Templates } from "../maze/templates/lv1";
       if (state.maze.goal.x === nx && state.maze.goal.y === ny) {
         // とりあえず終了（次：リザルト画面へ）
         state.running = false;
+        sfx.clear();
         opts.onExit?.();
       }
     }
@@ -136,6 +144,14 @@ import { lv1Templates } from "../maze/templates/lv1";
       // ※ state.maze が存在するときだけ
       if (state.maze) {
         (state.maze as any).mouthOpen = mouthOpen;
+
+        // ペレットのフラッシュ時間更新（0.2秒で消す）
+        if (state.maze.lastEat) {
+            state.maze.lastEat.t += dt;
+            if (state.maze.lastEat.t >= 0.2) {
+              state.maze.lastEat = undefined;
+            }
+          }
       }
 
        // renderer/update がある場合だけ呼ぶ

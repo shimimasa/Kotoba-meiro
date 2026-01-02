@@ -19,6 +19,13 @@
     // S→a→b→c→d→e→G の最短結合ルート
     route?: { path: Array<{ x: number; y: number }>; length: number };
 
+    // pellets (walkable '.' に置く)
+    pellets: boolean[][];
+    score: number;
+
+    // 直近で食べたペレットのフラッシュ演出
+    lastEat?: { x: number; y: number; t: number };
+
     // player
     player: { x: number; y: number; dir: "up" | "down" | "left" | "right" };
     nextLetterIndex: number;
