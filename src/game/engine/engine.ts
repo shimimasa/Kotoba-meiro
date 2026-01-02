@@ -8,6 +8,19 @@ import { lv1Templates } from "../maze/templates/lv1";
 
 import { createSfx } from "../audio/sfx";
 
+
+export type GameResult = {
+  timeSec: number;
+  score: number;
+  pelletsEaten: number;
+  pelletsTotal: number;
+  lettersCollected: number;
+  lettersTotal: number;
+  hintEnabled: boolean;
+};
+
+
+
 // ---- 追加の内部型（GameStateは最小でもOK。拡張して使う） ----
 type Dir = "up" | "down" | "left" | "right";
 
@@ -48,6 +61,7 @@ export type Engine = {
 export function createEngine(opts: {
   canvas: HTMLCanvasElement;
   hintEnabled: boolean;
+  onResult?: (result: GameResult) => void;
   onExit?: () => void;
 }): Engine {
   // GameState は最小定義でもOK。交差型で拡張して持つ
@@ -102,6 +116,13 @@ export function createEngine(opts: {
     pellets,
     score: 0,
   };
+
+  // ===== 追加：結果計算用 =====
+  let elapsedSec = 0;
+  const pelletsTotal = state.maze.pellets.reduce(
+    (acc, row) => acc + row.filter(Boolean).length,
+    0
+  );
 
   // ---- 入力（矢印 / WASD） ----
   let movedThisFrame = false;
@@ -196,10 +217,33 @@ export function createEngine(opts: {
     if (m.nextLetterIndex >= m.letters.length) {
       if (m.goal.x === nx && m.goal.y === ny) {
         state.running = false;
-        try {
-          (sfx as any).clear?.();
-        } catch {}
-        opts.onExit?.();
+
+    try {
+      (sfx as any).clear?.();
+    } catch {}
+
+    // 残りペレット数
+    const pelletsLeft = m.pellets.reduce(
+      (acc, row) => acc + row.filter(Boolean).length,
+      0
+    );
+
+    const result = {
+      timeSec: Math.round(elapsedSec),
+      score: m.score ?? 0,
+      pelletsEaten: pelletsTotal - pelletsLeft,
+      pelletsTotal,
+      lettersCollected: m.nextLetterIndex,
+      lettersTotal: m.letters.length,
+      hintEnabled: state.hintEnabled,
+    };
+
+    // ResultScreen がある場合はこちら
+    if (opts.onResult) {
+      opts.onResult(result);
+    } else {
+      opts.onExit?.();
+    }
       }
     }
   };
@@ -221,6 +265,8 @@ export function createEngine(opts: {
       const m = state.maze;
       if (!m) return;
 
+      // 経過時間（秒）
+      elapsedSec += dt;
       // 口パク（動いたら0.15秒だけ開く）
       if (movedThisFrame) {
         mouthTimer = 0.15;

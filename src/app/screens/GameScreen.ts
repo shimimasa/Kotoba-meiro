@@ -39,29 +39,30 @@ export function GameScreen(router: Router): HTMLElement {
   main.style.overflow = "hidden";
   main.style.background = "#f7f7f7";
 
-  // canvas（1回だけ）
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.display = "block";
   canvas.style.touchAction = "none";
   canvas.setAttribute("aria-label", "game canvas");
-
   main.appendChild(canvas);
 
-  wrap.appendChild(top);
-  wrap.appendChild(main);
+  wrap.append(top, main);
 
   // --- engine start
   const engine = createEngine({
     canvas,
     hintEnabled: router.getSettings().hintEnabled,
+    onResult: (result) => {
+      router.setResult(result);
+      router.go("result");
+    },
     onExit: () => router.go("start"),
   });
 
   const stop = startLoop(engine);
 
-  // DOMから外れたら止める（removeイベントは信用しない）
+  // DOMから外れたら止める
   const mo = new MutationObserver(() => {
     if (!wrap.isConnected) {
       stop();
@@ -72,4 +73,5 @@ export function GameScreen(router: Router): HTMLElement {
 
   return wrap;
 }
+
 
