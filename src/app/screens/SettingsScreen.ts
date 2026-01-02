@@ -21,17 +21,17 @@ export function SettingsScreen(router: Router): HTMLElement {
 
   const hint = document.createElement("input");
   hint.type = "checkbox";
-  hint.checked = current.hintEnabled;
+  hint.checked = !!current.hintEnabled;
 
   const hintText = document.createElement("span");
-  hintText.textContent = "ヒントを表示する（つぎの文字を出す）";
+  hintText.textContent = "ヒント表示（ルート）";
 
   hintRow.append(hint, hintText);
 
   const note = document.createElement("div");
-  note.textContent = "※ ゲーム中は変更できません。";
-  note.style.fontSize = "12px";
-  note.style.opacity = "0.7";
+  note.style.fontSize = "13px";
+  note.style.opacity = "0.75";
+  note.textContent = "ONにすると、最短ルートの目印が表示されます。";
 
   const back = document.createElement("button");
   back.textContent = "← もどる";
@@ -46,3 +46,4 @@ export function SettingsScreen(router: Router): HTMLElement {
   wrap.append(h, hintRow, note, back);
   return wrap;
 }
+

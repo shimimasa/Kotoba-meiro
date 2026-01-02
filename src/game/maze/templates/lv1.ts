@@ -1,4 +1,4 @@
-import type { MazeTemplate } from "../../maze/types";
+import type { MazeTemplate } from "../types";
 
 /**
  * Lv1: あいうえお
@@ -23,10 +23,9 @@ export const lv1Templates: MazeTemplate[] = [
     ],
     letters: ["あ", "い", "う", "え", "お"],
   },
-
   {
     id: "lv1-b",
-    description: "回廊型・左右対称",
+    description: "分岐多め・回り道あり",
     grid: [
       "###########",
       "#S..a.b...#",
@@ -35,7 +34,7 @@ export const lv1Templates: MazeTemplate[] = [
       "###.#.#.###",
       "#.....d.e.#",
       "#.###.###.#",
-      "#.......G#",
+      "#........G#", // ← ここが重要（11文字）
       "###########",
     ],
     letters: ["あ", "い", "う", "え", "お"],

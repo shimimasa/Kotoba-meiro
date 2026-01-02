@@ -23,7 +23,7 @@ export const LV2_ROWS: Array<{ id: string; letters: [string, string, string, str
 const BASE_TEMPLATES: Array<Omit<MazeTemplate, "letters">> = [
   {
     id: "lv2-a",
-    description: "Lv2：一本道ベース・分岐1つ",
+    description: "一本道ベース・分岐1つ",
     grid: [
       "###########",
       "#S..a....G#",
@@ -38,7 +38,7 @@ const BASE_TEMPLATES: Array<Omit<MazeTemplate, "letters">> = [
   },
   {
     id: "lv2-b",
-    description: "Lv2：回廊型・左右対称",
+    description: "分岐多め・回り道あり",
     grid: [
       "###########",
       "#S..a.b...#",
@@ -47,19 +47,16 @@ const BASE_TEMPLATES: Array<Omit<MazeTemplate, "letters">> = [
       "###.#.#.###",
       "#.....d.e.#",
       "#.###.###.#",
-      "#.......G#",
+      "#........G#",
       "###########",
     ],
   },
 ];
 
-/**
- * Lv2テンプレを生成（テンプレ2種 × 行ランダム）
- * - random を差し替えれば seed RNG にも対応できる
- */
-export function pickLv2Template(random: () => number = Math.random): MazeTemplate {
-  const row = LV2_ROWS[Math.floor(random() * LV2_ROWS.length)];
-  const base = BASE_TEMPLATES[Math.floor(random() * BASE_TEMPLATES.length)];
+/** ランダムに1テンプレ生成（base×row） */
+export function buildRandomLv2Template(rng: () => number = Math.random): MazeTemplate {
+  const row = LV2_ROWS[Math.floor(rng() * LV2_ROWS.length)];
+  const base = BASE_TEMPLATES[Math.floor(rng() * BASE_TEMPLATES.length)];
 
   return {
     id: `${base.id}-${row.id}`,
@@ -69,9 +66,7 @@ export function pickLv2Template(random: () => number = Math.random): MazeTemplat
   };
 }
 
-/**
- * デバッグ用：全組み合わせを列挙したい場合
- */
+/** デバッグ用：全組み合わせを列挙 */
 export function buildAllLv2Templates(): MazeTemplate[] {
   const out: MazeTemplate[] = [];
   for (const base of BASE_TEMPLATES) {

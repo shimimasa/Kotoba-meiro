@@ -9,22 +9,15 @@ export type MazeTemplate = {
     /** 人間向け説明（デバッグ用） */
     description?: string;
   
-    /** ASCII迷路データ */
+    /** ASCII迷路データ（必ず矩形：全行同じ長さ） */
     grid: string[];
   
     /** 使用する文字（順序保証） */
     letters: string[];
   };
   
-  /**
-   * 解析後のセル種別
-   */
-  export type CellType =
-    | "wall"
-    | "path"
-    | "start"
-    | "goal"
-    | "letter";
+  /** セル種別 */
+  export type CellType = "wall" | "path" | "start" | "goal" | "letter";
   
   /**
    * 解析済みセル
@@ -33,6 +26,7 @@ export type MazeTemplate = {
     x: number;
     y: number;
     type: CellType;
+    /** letterセルの場合にだけ入る（例："あ"） */
     letter?: string;
   };
   
