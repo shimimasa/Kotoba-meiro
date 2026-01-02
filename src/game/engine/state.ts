@@ -20,7 +20,7 @@
     route?: { path: Array<{ x: number; y: number }>; length: number };
 
     // player
-    player: { x: number; y: number };
+    player: { x: number; y: number; dir: "up" | "down" | "left" | "right" };
     nextLetterIndex: number;
   };
 };

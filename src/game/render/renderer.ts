@@ -118,13 +118,42 @@ export function createRenderer(canvas: HTMLCanvasElement, state: GameState) {
       }
     }
 
-    // プレイヤー
+
+    
+    // プレイヤー（パックマン風）
     {
       const px = ox + m.player.x * cell;
       const py = oy + m.player.y * cell;
-      ctx.fillStyle = "#ff6b6b";
+      const cx = px + cell / 2;
+      const cy = py + cell / 2;
+      const r = cell * 0.38;
+
+      const dir = m.player.dir;
+      const mouthOpen = !!(m as any).mouthOpen;
+      // 開き具合（閉=小、開=大）
+      const gap = mouthOpen ? Math.PI / 5 : Math.PI / 12;
+
+      const baseAngle =
+        dir === "right" ? 0 :
+        dir === "down"  ? Math.PI / 2 :
+        dir === "left"  ? Math.PI :
+        -Math.PI / 2; // up
+
+      const a1 = baseAngle + gap;
+      const a2 = baseAngle - gap;
+
+      ctx.fillStyle = "#ff6b6b"; // まずは赤（あとで黄色にしたいならここ）
       ctx.beginPath();
-      ctx.arc(px + cell / 2, py + cell / 2, cell * 0.35, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, a1, a2, true);
+      ctx.closePath();
+      ctx.fill();
+
+      // 目（上向き/下向きでも自然に見えるよう少し上に）
+      ctx.fillStyle = "#111";
+      const eyeOffset = dir === "down" ? 0 : -r * 0.25;
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.15, cy + eyeOffset, r * 0.10, 0, Math.PI * 2);
       ctx.fill();
     }
 
