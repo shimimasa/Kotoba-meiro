@@ -9,6 +9,9 @@ export function GameScreen(router: Router): HTMLElement {
   wrap.style.height = "100vh";
   wrap.style.fontFamily = "system-ui, sans-serif";
   wrap.style.background = "white";
+  wrap.style.position = "relative"; // ←これ必須
+  wrap.style.overflow = "hidden";
+  wrap.style.height = "100dvh"; // 可能なら（対応してない環境でも崩れにくい）
 
   // --- top bar
   const top = document.createElement("div");
@@ -50,99 +53,120 @@ export function GameScreen(router: Router): HTMLElement {
   canvas.setAttribute("aria-label", "game canvas");
   main.appendChild(canvas);
 
-  // ===== Mobile D-pad =====
-  // engine が window でも canvas でも keydown を受け取れるように、両方に投げる
-  const fireKey = (key: string) => {
-    const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
-    window.dispatchEvent(ev);
-    canvas.dispatchEvent(ev);
+  // ===== Mobile D-pad (fixed + safe-area + tap=1step, hold=repeat) =====
+
+// engine が window でも canvas でも keydown を受け取れるように両方へ投げる
+const fireKey = (key: string) => {
+  const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+  window.dispatchEvent(ev);
+  canvas.dispatchEvent(ev);
+};
+
+// 長押しのときだけ連打する（短押しは1回だけ）
+const startHoldRepeat = (key: string) => {
+  fireKey(key); // 短押し分の1回
+
+  // ここから「長押しなら連打開始」
+  let intervalId: number | null = null;
+  const timeoutId = window.setTimeout(() => {
+    intervalId = window.setInterval(() => fireKey(key), 90);
+  }, 250);
+
+  // stop
+  return () => {
+    window.clearTimeout(timeoutId);
+    if (intervalId !== null) window.clearInterval(intervalId);
   };
+};
 
-  const startRepeat = (key: string) => {
-    fireKey(key); // まず1回
-    const id = window.setInterval(() => fireKey(key), 90); // 60〜120msで好み調整
-    return () => window.clearInterval(id);
-  };
+const createDpad = () => {
+  const pad = document.createElement("div");
+  pad.setAttribute("aria-label", "D-pad");
 
-  const createDpad = () => {
-    const pad = document.createElement("div");
-    pad.setAttribute("aria-label", "D-pad");
-    pad.style.position = "absolute";
-    pad.style.left = "12px";
-    pad.style.bottom = "12px";
-    pad.style.width = "150px";
-    pad.style.height = "150px";
-    pad.style.display = "grid";
-    pad.style.gridTemplateColumns = "1fr 1fr 1fr";
-    pad.style.gridTemplateRows = "1fr 1fr 1fr";
-    pad.style.gap = "10px";
-    pad.style.pointerEvents = "auto";
-    pad.style.userSelect = "none";
-    pad.style.touchAction = "none";
-    pad.style.zIndex = "10";
+  // ★重要：fixed + safe-area
+  pad.style.position = "fixed";
+  pad.style.left = "calc(12px + env(safe-area-inset-left))";
+  pad.style.bottom = "calc(12px + env(safe-area-inset-bottom))";
 
-    const mkBtn = (label: string, key: string, col: number, row: number) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = label;
-      b.style.gridColumn = String(col);
-      b.style.gridRow = String(row);
-      b.style.borderRadius = "14px";
-      b.style.border = "1px solid rgba(0,0,0,0.18)";
-      b.style.background = "rgba(255,255,255,0.92)";
-      b.style.backdropFilter = "blur(6px)";
-      b.style.fontSize = "20px";
-      b.style.fontWeight = "800";
-      b.style.cursor = "pointer";
-      b.style.width = "100%";
-      b.style.height = "100%";
-      b.style.boxShadow = "0 6px 18px rgba(0,0,0,0.10)";
-      b.style.touchAction = "none";
+  pad.style.width = "160px";
+  pad.style.height = "160px";
+  pad.style.display = "grid";
+  pad.style.gridTemplateColumns = "1fr 1fr 1fr";
+  pad.style.gridTemplateRows = "1fr 1fr 1fr";
+  pad.style.gap = "10px";
+  pad.style.pointerEvents = "auto";
+  pad.style.userSelect = "none";
+  pad.style.touchAction = "none";
+  pad.style.zIndex = "1000"; // canvasより前に
 
-      let stop: null | (() => void) = null;
+  const mkBtn = (label: string, key: string, col: number, row: number) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
 
-      const down = (ev: PointerEvent) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        // iOS/Androidで pointerup が外れた時も拾えるようにする
-        try {
-          (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
-        } catch {}
-        if (stop) return;
-        stop = startRepeat(key);
-        b.style.transform = "scale(0.98)";
-      };
+    b.style.gridColumn = String(col);
+    b.style.gridRow = String(row);
 
-      const up = (ev?: PointerEvent) => {
-        ev?.preventDefault?.();
-        ev?.stopPropagation?.();
-        if (stop) stop();
-        stop = null;
-        b.style.transform = "";
-      };
+    b.style.borderRadius = "14px";
+    b.style.border = "1px solid rgba(0,0,0,0.18)";
+    b.style.background = "rgba(255,255,255,0.92)";
+    b.style.backdropFilter = "blur(6px)";
+    b.style.fontSize = "22px";
+    b.style.fontWeight = "800";
+    b.style.cursor = "pointer";
+    b.style.width = "100%";
+    b.style.height = "100%";
+    b.style.boxShadow = "0 6px 18px rgba(0,0,0,0.10)";
+    b.style.touchAction = "none";
 
-      b.addEventListener("pointerdown", down);
-      b.addEventListener("pointerup", up);
-      b.addEventListener("pointercancel", up);
-      b.addEventListener("lostpointercapture", up);
+    let stop: null | (() => void) = null;
 
-      return b;
+    const down = (ev: PointerEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try {
+        (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+      } catch {}
+
+      if (stop) return;
+      stop = startHoldRepeat(key); // ★短押し1回 + 長押し連打
+      b.style.transform = "scale(0.98)";
     };
 
-    // 十字配置
-    pad.append(
-      mkBtn("▲", "ArrowUp", 2, 1),
-      mkBtn("◀", "ArrowLeft", 1, 2),
-      mkBtn("▶", "ArrowRight", 3, 2),
-      mkBtn("▼", "ArrowDown", 2, 3)
-    );
+    const up = (ev?: PointerEvent) => {
+      ev?.preventDefault?.();
+      ev?.stopPropagation?.();
+      if (stop) stop();
+      stop = null;
+      b.style.transform = "";
+    };
 
-    return pad;
+    b.addEventListener("pointerdown", down);
+    b.addEventListener("pointerup", up);
+    b.addEventListener("pointercancel", up);
+    b.addEventListener("lostpointercapture", up);
+
+    return b;
   };
 
-  // D-pad を canvas の上に重ねる
-  const dpad = createDpad();
-  main.appendChild(dpad);
+  pad.append(
+    mkBtn("▲", "ArrowUp", 2, 1),
+    mkBtn("◀", "ArrowLeft", 1, 2),
+    mkBtn("▶", "ArrowRight", 3, 2),
+    mkBtn("▼", "ArrowDown", 2, 3)
+  );
+
+  return pad;
+};
+
+// ★fixedなので main ではなく document.body に載せるのが安定
+const dpad = createDpad();
+document.body.appendChild(dpad);
+
+// 画面を離れるときに消す（MutationObserverの停止と同じタイミングでOK）
+const cleanupDpad = () => {
+  if (dpad.isConnected) dpad.remove();
+};
 
   // engine
   const engine = createEngine({
@@ -162,6 +186,7 @@ export function GameScreen(router: Router): HTMLElement {
   const mo = new MutationObserver(() => {
     if (!wrap.isConnected) {
       stop();
+      cleanupDpad();
       mo.disconnect();
     }
   });
