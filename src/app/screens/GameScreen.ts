@@ -5,15 +5,21 @@ import { startLoop } from "../../game/engine/gameLoop";
 export function GameScreen(router: Router): HTMLElement {
   // ===== root =====
   const wrap = document.createElement("div");
-  wrap.style.display = "grid";
-  // top / hud / main / controls
-  wrap.style.gridTemplateRows = "auto auto 1fr auto";
-  // iOS対策: 100vhより100dvhが安定（対応ブラウザでは効く）
-  (wrap.style as any).height = "100dvh";
-  wrap.style.height = wrap.style.height || "100vh";
-  wrap.style.fontFamily = "system-ui, sans-serif";
-  wrap.style.background = "white";
-  wrap.style.overflow = "hidden";
+
+// ✅ 画面全体を固定して、ページスクロールを殺す
+wrap.style.position = "fixed";
+wrap.style.inset = "0";
+wrap.style.overflow = "hidden";
+
+// ✅ レイアウトは縦flex（top/hud/main）
+wrap.style.display = "flex";
+wrap.style.flexDirection = "column";
+
+// iOS対策: 100vhより100dvhが安定
+(wrap.style as any).height = "100dvh";
+
+wrap.style.fontFamily = "system-ui, sans-serif";
+wrap.style.background = "white";
 
   // ===== top bar =====
   const top = document.createElement("div");
@@ -75,15 +81,23 @@ export function GameScreen(router: Router): HTMLElement {
 
   // ===== main (canvas) =====
   const main = document.createElement("div");
-  main.style.position = "relative";
-  main.style.overflow = "hidden";
-  main.style.display = "grid";
-  main.style.placeItems = "center";
+
+// ✅ 余った高さをmainが全部受け持つ（canvasはこの中に収まる）
+main.style.flex = "1";
+main.style.minHeight = "0";        // ← これが超重要（オーバーフロー防止）
+main.style.position = "relative";
+main.style.overflow = "hidden";
+
+// 中央寄せ（好みでOK）
+main.style.display = "flex";
+main.style.alignItems = "center";
+main.style.justifyContent = "center";
+
   main.style.padding = "8px 12px";
 
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
-  canvas.style.height = "100%";
+  canvas.style.height = "100%";   // ← mainがflex:1/minHeight:0ならOK
   canvas.style.display = "block";
   canvas.style.touchAction = "none"; // スクロール/拡大を抑制
   canvas.setAttribute("aria-label", "game canvas");
