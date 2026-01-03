@@ -8,6 +8,7 @@ export function GameScreen(router: Router): HTMLElement {
   wrap.style.gridTemplateRows = "auto 1fr";
   wrap.style.height = "100vh";
   wrap.style.fontFamily = "system-ui, sans-serif";
+  wrap.style.background = "white";
 
   // --- top bar
   const top = document.createElement("div");
@@ -16,6 +17,7 @@ export function GameScreen(router: Router): HTMLElement {
   top.style.justifyContent = "space-between";
   top.style.padding = "10px 12px";
   top.style.borderBottom = "1px solid rgba(0,0,0,0.1)";
+  top.style.background = "white";
 
   const backBtn = document.createElement("button");
   backBtn.textContent = "← もどる";
@@ -33,49 +35,32 @@ export function GameScreen(router: Router): HTMLElement {
 
   top.append(backBtn, hintLabel);
 
-  // --- main
+  // --- main (canvas container)
   const main = document.createElement("div");
   main.style.position = "relative";
   main.style.overflow = "hidden";
   main.style.background = "#f7f7f7";
+  main.style.touchAction = "none"; // スクロール/ピンチ干渉を減らす
 
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.display = "block";
-  canvas.style.touchAction = "none";
+  canvas.style.touchAction = "none"; // 重要
   canvas.setAttribute("aria-label", "game canvas");
   main.appendChild(canvas);
 
-  wrap.append(top, main);
-
-  main.style.position = "relative"; // ←これ必須
-
-  // --- engine start
-  const engine = createEngine({
-    canvas,
-    hintEnabled: router.getSettings().hintEnabled,
-    level: router.getSettings().level ?? 1,
-    onResult: (result) => {
-      router.setResult(result);
-      router.go("result");
-    },
-    onExit: () => router.go("start"),
-  });
-
-    // ===== Mobile D-pad =====
-  // engineが矢印キー入力を受け取っている前提で、擬似キーイベントを投げる
+  // ===== Mobile D-pad =====
+  // engine が window でも canvas でも keydown を受け取れるように、両方に投げる
   const fireKey = (key: string) => {
-    // 連打/押しっぱなしも効くよう keydown を投げる
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
-    );
+    const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    window.dispatchEvent(ev);
+    canvas.dispatchEvent(ev);
   };
 
-  // 押しっぱなし対応（一定間隔で送る）
   const startRepeat = (key: string) => {
-    fireKey(key);
-    const id = window.setInterval(() => fireKey(key), 80); // 好みで 60〜120ms
+    fireKey(key); // まず1回
+    const id = window.setInterval(() => fireKey(key), 90); // 60〜120msで好み調整
     return () => window.clearInterval(id);
   };
 
@@ -85,15 +70,16 @@ export function GameScreen(router: Router): HTMLElement {
     pad.style.position = "absolute";
     pad.style.left = "12px";
     pad.style.bottom = "12px";
-    pad.style.width = "140px";
-    pad.style.height = "140px";
+    pad.style.width = "150px";
+    pad.style.height = "150px";
     pad.style.display = "grid";
     pad.style.gridTemplateColumns = "1fr 1fr 1fr";
     pad.style.gridTemplateRows = "1fr 1fr 1fr";
     pad.style.gap = "10px";
     pad.style.pointerEvents = "auto";
     pad.style.userSelect = "none";
-    pad.style.touchAction = "none"; // ←重要：スクロール/ズーム干渉を減らす
+    pad.style.touchAction = "none";
+    pad.style.zIndex = "10";
 
     const mkBtn = (label: string, key: string, col: number, row: number) => {
       const b = document.createElement("button");
@@ -111,18 +97,23 @@ export function GameScreen(router: Router): HTMLElement {
       b.style.width = "100%";
       b.style.height = "100%";
       b.style.boxShadow = "0 6px 18px rgba(0,0,0,0.10)";
+      b.style.touchAction = "none";
 
       let stop: null | (() => void) = null;
 
-      const down = (ev: Event) => {
+      const down = (ev: PointerEvent) => {
         ev.preventDefault();
         ev.stopPropagation();
+        // iOS/Androidで pointerup が外れた時も拾えるようにする
+        try {
+          (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+        } catch {}
         if (stop) return;
         stop = startRepeat(key);
         b.style.transform = "scale(0.98)";
       };
 
-      const up = (ev?: Event) => {
+      const up = (ev?: PointerEvent) => {
         ev?.preventDefault?.();
         ev?.stopPropagation?.();
         if (stop) stop();
@@ -130,14 +121,10 @@ export function GameScreen(router: Router): HTMLElement {
         b.style.transform = "";
       };
 
-      // Pointer events（タッチ/マウス統一）
       b.addEventListener("pointerdown", down);
       b.addEventListener("pointerup", up);
       b.addEventListener("pointercancel", up);
-      b.addEventListener("pointerleave", up);
-
-      // もし画面外で指を離した時も止めたいなら
-      window.addEventListener("pointerup", up);
+      b.addEventListener("lostpointercapture", up);
 
       return b;
     };
@@ -153,10 +140,21 @@ export function GameScreen(router: Router): HTMLElement {
     return pad;
   };
 
-  // wrap か main のどちらか「position: relative」な親に入れる
-  // ※今のGameScreen構造に合わせて、canvasを入れている親要素に append してください
-  // 例：wrap.style.position = "relative"; wrap.appendChild(createDpad());
+  // D-pad を canvas の上に重ねる
+  const dpad = createDpad();
+  main.appendChild(dpad);
 
+  // engine
+  const engine = createEngine({
+    canvas,
+    hintEnabled: router.getSettings().hintEnabled,
+    level: router.getSettings().level ?? 1,
+    onResult: (result) => {
+      router.setResult(result);
+      router.go("result");
+    },
+    onExit: () => router.go("start"),
+  });
 
   const stop = startLoop(engine);
 
@@ -169,7 +167,6 @@ export function GameScreen(router: Router): HTMLElement {
   });
   mo.observe(document.body, { childList: true, subtree: true });
 
+  wrap.append(top, main);
   return wrap;
 }
-
-
