@@ -25,6 +25,7 @@ export function createRouter(root: HTMLElement): Router {
   let settings: Settings = {
     ...defaultSettings,
     hintEnabled: typeof saved.hintEnabled === "boolean" ? saved.hintEnabled : defaultSettings.hintEnabled,
+    level: typeof saved.level === "number" ? saved.level : defaultSettings.level,
   };
 
   // in-memory result
@@ -57,7 +58,7 @@ export function createRouter(root: HTMLElement): Router {
     setSettings(next) {
       settings = next;
       const current = loadSave();
-      saveData({ ...current, hintEnabled: next.hintEnabled });
+      saveData({ ...current, hintEnabled: next.hintEnabled, level: next.level });
     },
 
     setResult(r) {

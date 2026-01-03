@@ -5,6 +5,7 @@ import { analyzeTemplate } from "../maze/analyzeTemplate";
 import { planSpawns } from "../maze/spawnPlanner";
 import { buildRoute } from "../maze/path";
 import { lv1Templates } from "../maze/templates/lv1";
+import { pickLv2Template } from "../maze/templates/lv2";
 
 import { createSfx } from "../audio/sfx";
 
@@ -61,6 +62,7 @@ export type Engine = {
 export function createEngine(opts: {
   canvas: HTMLCanvasElement;
   hintEnabled: boolean;
+  level: number;
   onResult?: (result: GameResult) => void;
   onExit?: () => void;
 }): Engine {
@@ -83,7 +85,11 @@ export function createEngine(opts: {
   }
 
   // ---- 迷路初期化 ----
-  const template = lv1Templates[0];
+  const level = Math.max(1, Math.floor(opts.level ?? 1));
+const template =
+  level === 2
+    ? pickLv2Template(Math.random) // ここに rng を注入するなら差し替え
+    : lv1Templates[0];
   const analyzed = analyzeTemplate(template); // { w,h,grid,walkable,start,goal }
   const plan = planSpawns(template); // letters: [{char,pos},...]
 

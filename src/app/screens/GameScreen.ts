@@ -53,6 +53,7 @@ export function GameScreen(router: Router): HTMLElement {
   const engine = createEngine({
     canvas,
     hintEnabled: router.getSettings().hintEnabled,
+    level: router.getSettings().level ?? 1,
     onResult: (result) => {
       router.setResult(result);
       router.go("result");

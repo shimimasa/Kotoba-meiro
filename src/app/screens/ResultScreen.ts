@@ -105,7 +105,23 @@ export function ResultScreen(router: Router): HTMLElement {
   toStart.style.cursor = "pointer";
   toStart.onclick = () => router.go("start");
 
-  buttons.append(retry, toStart);
+
+  const nextBtn = document.createElement("button");
+  nextBtn.textContent = "つぎへ";
+  nextBtn.style.padding = "10px 14px";
+  nextBtn.style.borderRadius = "12px";
+  nextBtn.style.border = "1px solid rgba(0,0,0,0.18)";
+  nextBtn.style.background = "white";
+  nextBtn.style.cursor = "pointer";
+  nextBtn.onclick = () => {
+    const s = router.getSettings();
+    const nextLevel = Math.min(2, (s.level ?? 1) + 1);
+    router.setSettings({ ...s, level: nextLevel });
+    router.go("game");
+  };
+
+  buttons.append(nextBtn, retry, toStart);
+
 
   card.append(title, sub, grid, note, buttons);
   wrap.appendChild(card);

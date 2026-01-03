@@ -1,6 +1,6 @@
 export type SaveData = {
-    level: number;
     hintEnabled: boolean;
+    level: number;
   };
   
   const KEY = "kotoba-meiro-save";
