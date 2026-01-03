@@ -1,267 +1,250 @@
-import type { Router } from "../router";
-import { createEngine } from "../../game/engine/engine";
-import { startLoop } from "../../game/engine/gameLoop";
-import type { GameResult } from "../../game/engine/engine";
 
-export function GameScreen(router: Router): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.style.display = "grid";
-  wrap.style.gridTemplateRows = "auto auto 1fr";
-    // iOS対策: 100vhより100dvhが安定
-    (wrap.style as any).height = "100dvh";
-  wrap.style.fontFamily = "system-ui, sans-serif";
-  wrap.style.background = "white";
-  wrap.style.position = "relative"; // ←これ必須
-  wrap.style.overflow = "hidden";
-  wrap.style.height = "100dvh"; // 可能なら（対応してない環境でも崩れにくい）
+ import type { Router } from "../router";
+ import { createEngine } from "../../game/engine/engine";
+ import { startLoop } from "../../game/engine/gameLoop";
+ import type { GameResult } from "../../game/engine/engine";
+ 
+ export function GameScreen(router: Router): HTMLElement {
+   const wrap = document.createElement("div");
+   wrap.style.display = "grid";
+   wrap.style.gridTemplateRows = "auto auto 1fr";
 
-  // --- top bar
-  const top = document.createElement("div");
-  top.style.display = "flex";
-  top.style.alignItems = "center";
-  top.style.justifyContent = "space-between";
-  top.style.padding = "10px 12px";
-  top.style.borderBottom = "1px solid rgba(0,0,0,0.1)";
-  top.style.background = "white";
+  // iOS対策: 100vhより100dvhが安定
+ (wrap.style as any).height = "100dvh";
+   wrap.style.fontFamily = "system-ui, sans-serif";
+   wrap.style.background = "white";
+   wrap.style.position = "relative";
+   wrap.style.overflow = "hidden";
 
-  const backBtn = document.createElement("button");
+   // --- top bar controls
+  const backBtn: HTMLButtonElement = document.createElement("button");
   backBtn.textContent = "← もどる";
-  backBtn.style.padding = "8px 12px";
-  backBtn.style.borderRadius = "10px";
+  backBtn.style.padding = "10px 16px";
   backBtn.style.border = "1px solid rgba(0,0,0,0.15)";
+  backBtn.style.borderRadius = "14px";
   backBtn.style.background = "white";
   backBtn.style.cursor = "pointer";
   backBtn.onclick = () => router.go("start");
 
-  const hintLabel = document.createElement("div");
-  hintLabel.style.fontSize = "14px";
+  const hintLabel: HTMLDivElement = document.createElement("div");
   hintLabel.style.opacity = "0.85";
-  hintLabel.textContent = router.getSettings().hintEnabled ? "ヒント：ON" : "ヒント：OFF";
+  hintLabel.style.whiteSpace = "nowrap";
+  hintLabel.textContent = `ヒント：${router.getSettings().hintEnabled ? "ON" : "OFF"}`;
 
-  top.append(backBtn, hintLabel);
+ 
+   // --- top bar
+   const top = document.createElement("div");
+   top.style.display = "flex";
+   top.style.alignItems = "center";
+   top.style.justifyContent = "space-between";
+   top.style.padding = "10px 16px";
+ 
+   top.append(backBtn, hintLabel);
    wrap.appendChild(top);
  
-  // --- HUD（情報表示）
-  const hud = document.createElement("div");
-  hud.style.display = "grid";
-  hud.style.gridTemplateColumns = "1fr auto";
-  hud.style.rowGap = "6px";
-  hud.style.columnGap = "12px";
-  hud.style.padding = "10px 16px";
-  hud.style.borderBottom = "1px solid #f0f0f0";
-  hud.style.fontSize = "14px";
-  hud.style.lineHeight = "1.2";
+   // --- HUD（情報表示）
+   const hud = document.createElement("div");
 
+  hud.style.display = "flex";
+  hud.style.justifyContent = "space-between";
+  hud.style.alignItems = "flex-start";
+  hud.style.padding = "10px 16px";
+  hud.style.gap = "12px";
+
+  // left area
+  const leftHud = document.createElement("div");
+  leftHud.style.display = "grid";
+  leftHud.style.gap = "4px";
   const nextEl = document.createElement("div");
-  nextEl.style.fontWeight = "600";
+  nextEl.style.fontSize = "16px";
   nextEl.textContent = "つぎ：-";
+
+  const dotsEl = document.createElement("div");
+  dotsEl.style.fontSize = "16px";
+  dotsEl.style.letterSpacing = "2px";
+  dotsEl.textContent = "○○○○○";
+  leftHud.append(nextEl, dotsEl);
+
+  // right area
+  const rightHud = document.createElement("div");
+  rightHud.style.display = "grid";
+  rightHud.style.gap = "6px";
+  rightHud.style.textAlign = "right";
 
   const timeEl = document.createElement("div");
   timeEl.style.opacity = "0.85";
-  timeEl.style.textAlign = "right";
   timeEl.textContent = "⏱ 0:00";
-
-  const dotsEl = document.createElement("div");
-  dotsEl.style.opacity = "0.9";
-  dotsEl.textContent = "●●●●●";
 
   const scoreEl = document.createElement("div");
   scoreEl.style.opacity = "0.85";
-  scoreEl.style.textAlign = "right";
   scoreEl.textContent = "score: 0";
 
-  hud.append(nextEl, timeEl, dotsEl, scoreEl);
-  wrap.appendChild(hud);
-
-  // --- main (canvas container)
+  rightHud.append(timeEl, scoreEl);
+  hud.append(leftHud, rightHud);
+   wrap.appendChild(hud);
+ 
+  // --- main（canvasを載せる）
   const main = document.createElement("div");
-   main.style.position = "relative";
-   main.style.overflow = "hidden";
-   main.style.display = "grid";
-   main.style.placeItems = "center";
-  // 下にD-padが来る前提で余白を確保（スマホの安全域に強い）
-  main.style.paddingBottom = "140px";
+  main.style.position = "relative";
+  main.style.overflow = "hidden";
+  main.style.display = "grid";
+  main.style.placeItems = "center";
+  main.style.padding = "8px 16px 140px"; // 下にD-padが来ても被りにくい
+  wrap.appendChild(main);
 
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.display = "block";
-  canvas.style.touchAction = "none"; // 重要
+  canvas.style.touchAction = "none"; // 重要（スワイプ/ダブルタップ等でズレない）
   canvas.setAttribute("aria-label", "game canvas");
   main.appendChild(canvas);
+ 
+   // --- engine 起動
+   const engine = createEngine({
+     canvas,
+     hintEnabled: router.getSettings().hintEnabled,
+     level: router.getSettings().level ?? 1,
+     onResult: (result: GameResult) => {
+       router.setResult(result);
+       router.go("result");
+     },
+     onExit: () => router.go("start"),
+   });
+ 
+   const stop = startLoop(engine);
 
-  // ===== Mobile D-pad (fixed + safe-area + tap=1step, hold=repeat) =====
+  // --- HUD 更新（engine.getState を参照）
+   let raf = 0;
+   const fmtTime = (sec: number) => {
+     const s = Math.max(0, Math.floor(sec));
+     const m = Math.floor(s / 60);
+     const r = s % 60;
+     return `${m}:${String(r).padStart(2, "0")}`;
+   };
+ 
+   const updateHud = () => {
+    const st: any = (engine as any).getState ? (engine as any).getState() : undefined;
+    const maze = st?.maze;
 
-// engine が window でも canvas でも keydown を受け取れるように両方へ投げる
-const fireKey = (key: string) => {
-  const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
-  window.dispatchEvent(ev);
-  canvas.dispatchEvent(ev);
-};
-
-// 長押しのときだけ連打する（短押しは1回だけ）
-const startHoldRepeat = (key: string) => {
-  fireKey(key); // 短押し分の1回
-
-  // ここから「長押しなら連打開始」
-  let intervalId: number | null = null;
-  const timeoutId = window.setTimeout(() => {
-    intervalId = window.setInterval(() => fireKey(key), 90);
-  }, 250);
-
-  // stop
-  return () => {
-    window.clearTimeout(timeoutId);
-    if (intervalId !== null) window.clearInterval(intervalId);
-  };
-};
-
-const createDpad = () => {
-  const pad = document.createElement("div");
-  pad.setAttribute("aria-label", "D-pad");
-
-  // ★重要：fixed + safe-area
-  pad.style.position = "fixed";
-  pad.style.left = "calc(12px + env(safe-area-inset-left))";
-  pad.style.bottom = "calc(12px + env(safe-area-inset-bottom))";
-
-  pad.style.width = "160px";
-  pad.style.height = "160px";
-  pad.style.display = "grid";
-  pad.style.gridTemplateColumns = "1fr 1fr 1fr";
-  pad.style.gridTemplateRows = "1fr 1fr 1fr";
-  pad.style.gap = "10px";
-  pad.style.pointerEvents = "auto";
-  pad.style.userSelect = "none";
-  pad.style.touchAction = "none";
-  pad.style.zIndex = "1000"; // canvasより前に
-
-  const mkBtn = (label: string, key: string, col: number, row: number) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = label;
-
-    b.style.gridColumn = String(col);
-    b.style.gridRow = String(row);
-
-    b.style.borderRadius = "14px";
-    b.style.border = "1px solid rgba(0,0,0,0.18)";
-    b.style.background = "rgba(255,255,255,0.92)";
-    b.style.backdropFilter = "blur(6px)";
-    b.style.fontSize = "22px";
-    b.style.fontWeight = "800";
-    b.style.cursor = "pointer";
-    b.style.width = "100%";
-    b.style.height = "100%";
-    b.style.boxShadow = "0 6px 18px rgba(0,0,0,0.10)";
-    b.style.touchAction = "none";
-
-    let stop: null | (() => void) = null;
-
-    const down = (ev: PointerEvent) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      try {
-        (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
-      } catch {}
-
-      if (stop) return;
-      stop = startHoldRepeat(key); // ★短押し1回 + 長押し連打
-      b.style.transform = "scale(0.98)";
-    };
-
-    const up = (ev?: PointerEvent) => {
-      ev?.preventDefault?.();
-      ev?.stopPropagation?.();
-      if (stop) stop();
-      stop = null;
-      b.style.transform = "";
-    };
-
-    b.addEventListener("pointerdown", down);
-    b.addEventListener("pointerup", up);
-    b.addEventListener("pointercancel", up);
-    b.addEventListener("lostpointercapture", up);
-
-    return b;
-  };
-
-  pad.append(
-    mkBtn("▲", "ArrowUp", 2, 1),
-    mkBtn("◀", "ArrowLeft", 1, 2),
-    mkBtn("▶", "ArrowRight", 3, 2),
-    mkBtn("▼", "ArrowDown", 2, 3)
-  );
-
-  return pad;
-};
-
-// ★fixedなので main ではなく document.body に載せるのが安定
-const dpad = createDpad();
-document.body.appendChild(dpad);
-
-// 画面を離れるときに消す（MutationObserverの停止と同じタイミングでOK）
-const cleanupDpad = () => {
-  if (dpad.isConnected) dpad.remove();
-};
-
-  // engine
-  const engine = createEngine({
-    canvas,
-    hintEnabled: router.getSettings().hintEnabled,
-    level: router.getSettings().level ?? 1,
-    onResult: (result) => {
-      router.setResult(result);
-      router.go("result");
-    },
-    onExit: () => router.go("start"),
-  });
-
-  const stop = startLoop(engine);
-
-  // --- HUD 更新（engineのstateを参照）
-  let raf = 0;
-  const fmtTime = (sec: number) => {
-    const s = Math.max(0, Math.floor(sec));
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return `${m}:${String(r).padStart(2, "0")}`;
-  };
-  const updateHud = () => {
-        const maze = (engine.getState() as any).maze as any | undefined;
-        const elapsed = maze?.elapsedSec ?? 0;
+    const elapsed = st?.elapsedSec ?? 0;
     timeEl.textContent = `⏱ ${fmtTime(elapsed)}`;
+    scoreEl.textContent = `score: ${st?.score ?? 0}`;
 
     if (maze?.letters?.length) {
-            const total = maze.letters.length;
-            const idx = maze.nextLetterIndex ?? 0;
-            const next = maze.letters[idx]?.letter ?? "-";
+      const total = maze.letters.length;
+      const idx = maze.nextLetterIndex ?? 0;
+      const next = maze.letters[idx]?.letter ?? "-";
       nextEl.textContent = `つぎ：${next}`;
 
-      // 進捗ドット：済=● / 未=○
       const done = Math.max(0, Math.min(total, idx));
       dotsEl.textContent = `${"●".repeat(done)}${"○".repeat(total - done)}`;
-    } else {
-      nextEl.textContent = "つぎ：-";
-      dotsEl.textContent = "";
-    }
+     } else {
+       nextEl.textContent = "つぎ：-";
+       dotsEl.textContent = "○○○○○";
+     }
+ 
+     raf = requestAnimationFrame(updateHud);
+   };
+   raf = requestAnimationFrame(updateHud);
+ 
+  // --- D-pad（タッチ端末のみ）
+  const isTouch = matchMedia?.("(pointer: coarse)").matches || "ontouchstart" in window;
 
-    // （必要なら）スコア表示もここで統一
-    // scoreEl.textContent = `score:${maze?.score ?? 0}`;
-    scoreEl.textContent = `score: ${maze?.score ?? 0}`;
-    raf = requestAnimationFrame(updateHud);
+  if (isTouch) {
+    const dpad = createDpad((dir) => {
+      // キーボード入力に寄せる（既存の入力処理を流用）
+      const map: Record<typeof dir, string> = {
+        up: "ArrowUp",
+        down: "ArrowDown",
+        left: "ArrowLeft",
+        right: "ArrowRight",
+      };
+      const key = map[dir];
+      window.dispatchEvent(new KeyboardEvent("keydown", { key }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { key }));
+    });
+    wrap.appendChild(dpad);
+  }
+
+   // --- 破棄
+   const mo = new MutationObserver(() => {
+     if (!wrap.isConnected) {
+       stop();
+       cancelAnimationFrame(raf);
+       mo.disconnect();
+     }
+   });
+   mo.observe(document.body, { childList: true, subtree: true });
+ 
+   return wrap;
+ }
+ 
+ function createDpad(onDir: (dir: "up" | "down" | "left" | "right") => void): HTMLDivElement {
+   const dpad = document.createElement("div");
+   dpad.style.position = "absolute";
+   dpad.style.left = "16px";
+   dpad.style.bottom = "16px";
+   dpad.style.display = "grid";
+   dpad.style.gridTemplateColumns = "64px 64px 64px";
+   dpad.style.gridTemplateRows = "64px 64px 64px";
+   dpad.style.gap = "10px";
+   dpad.style.zIndex = "10";
+   dpad.style.userSelect = "none";
+ 
+  // 連打で複数マス動くのを抑える（軽いクールダウン）
+  let last = 0;
+  const fire = (dir: "up" | "down" | "left" | "right") => {
+    const now = performance.now();
+    if (now - last < 120) return;
+    last = now;
+    onDir(dir);
   };
-  raf = requestAnimationFrame(updateHud);
 
-  // DOMから外れたら止める
-  const mo = new MutationObserver(() => {
-    if (!wrap.isConnected) {
-      try { stop(); } catch {}
-      try { cancelAnimationFrame(raf); } catch {}
-      try { engine.dispose(); } catch {}
-      mo.disconnect();
-    }
-  });
-  mo.observe(document.body, { childList: true, subtree: true });
-  return wrap;
-}
+   const mkBtn = (label: string, dir: "up" | "down" | "left" | "right") => {
+     const b = document.createElement("button");
+     b.type = "button";
+     b.textContent = label;
+     b.style.width = "64px";
+     b.style.height = "64px";
+     b.style.borderRadius = "14px";
+     b.style.border = "1px solid rgba(0,0,0,0.12)";
+     b.style.background = "rgba(255,255,255,0.95)";
+     b.style.boxShadow = "0 8px 24px rgba(0,0,0,0.10)";
+     b.style.fontSize = "22px";
+     b.style.cursor = "pointer";
+     b.style.touchAction = "manipulation";
+ 
+
+    const onPress = (e: Event) => {
+       e.preventDefault();
+       fire(dir);
+     };
+ 
+     b.addEventListener("pointerdown", onPress, { passive: false });
+     b.addEventListener("click", onPress, { passive: false }); // iOS保険
+ 
+     return b;
+   };
+ 
+   const up = mkBtn("▲", "up");
+   const down = mkBtn("▼", "down");
+   const left = mkBtn("◀", "left");
+   const right = mkBtn("▶", "right");
+ 
+   const empty = () => {
+     const s = document.createElement("div");
+     s.style.width = "64px";
+     s.style.height = "64px";
+     return s;
+   };
+ 
+   dpad.append(
+     empty(), up, empty(),
+     left, empty(), right,
+     empty(), down, empty()
+   );
+ 
+   return dpad;
+ }
+
