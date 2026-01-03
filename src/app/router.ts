@@ -1,75 +1,75 @@
+import { StartScreen } from "./screens/StartScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
+import { GameScreen } from "./screens/GameScreen";
+import { ResultScreen } from "./screens/ResultScreen";
 
- import { StartScreen } from "./screens/StartScreen";
- import { SettingsScreen } from "./screens/SettingsScreen";
- import { GameScreen } from "./screens/GameScreen";
- import { loadSave, saveData } from "../game/data/save";
- import { defaultSettings, type Settings } from "../game/data/settings";
- 
- export type RouteName = "start" | "settings" | "game";
- 
- export type Router = {
-   go: (to: RouteName) => void;
-   getSettings: () => Settings;
-   setSettings: (next: Settings) => void;
- };
- 
- export function createRouter(root: HTMLElement): Router {
+import { loadSave, saveData } from "../game/data/save";
+import { defaultSettings, type Settings } from "../game/data/settings";
+import type { GameResult } from "../game/engine/engine";
 
-  // 1) Save/Settings 初期化
-  const save = loadSave();
+export type RouteName = "start" | "settings" | "game" | "result";
+
+export type Router = {
+  go: (to: RouteName) => void;
+  getSettings: () => Settings;
+  setSettings: (next: Settings) => void;
+
+  // Result
+  setResult: (r: GameResult) => void;
+  getResult: () => GameResult | null;
+};
+
+export function createRouter(root: HTMLElement): Router {
+  // saved settings
+  const saved = loadSave();
   let settings: Settings = {
     ...defaultSettings,
-    ...(save ?? {}),
+    hintEnabled: typeof saved.hintEnabled === "boolean" ? saved.hintEnabled : defaultSettings.hintEnabled,
   };
 
-  // 旧形式（save.hintEnabled など）がある場合の吸収（保険）
-  if (typeof (save as any)?.hintEnabled === "boolean") {
-    (settings as any).hintEnabled = (save as any).hintEnabled;
-  }
-
-  // 2) 画面マウント（前画面を破棄）
-  let current: HTMLElement | null = null;
+  // in-memory result
+  let lastResult: GameResult | null = null;
 
   const mount = (el: HTMLElement) => {
-    if (current && current.isConnected) current.remove();
-    root.replaceChildren(el);
-    current = el;
+    root.innerHTML = "";
+    root.appendChild(el);
   };
 
-  // 3) Router 本体
   const router: Router = {
     go(to) {
-      if (to === "start") {
-        mount(StartScreen(router));
-        return;
+      if (to === "start") return mount(StartScreen(router));
+      if (to === "settings") return mount(SettingsScreen(router));
+      if (to === "game") return mount(GameScreen(router));
+      if (to === "result") {
+        // 結果が無いのに result へ来たら start へ戻す
+        if (!lastResult) return mount(StartScreen(router));
+        return mount(ResultScreen(router));
       }
-      if (to === "settings") {
-        mount(SettingsScreen(router));
-        return;
-      }
-      if (to === "game") {
-        mount(GameScreen(router));
-        return;
-      }
-      // 将来拡張用：未知ルートは start に落とす
-      mount(StartScreen(router));
+
+      // fallback
+      return mount(StartScreen(router));
     },
+
     getSettings() {
       return settings;
     },
+
     setSettings(next) {
       settings = next;
-      // 保存：settings を丸ごと保存（互換性のため hintEnabled もトップに写す）
-      const currentSave = loadSave();
-      saveData({
-        ...currentSave,
-        settings: next,
-        hintEnabled: (next as any).hintEnabled,
-      } as any);
+      const current = loadSave();
+      saveData({ ...current, hintEnabled: next.hintEnabled });
+    },
+
+    setResult(r) {
+      lastResult = r;
+    },
+
+    getResult() {
+      return lastResult;
     },
   };
 
-  // 初期ルート
+  // 初期表示
   router.go("start");
   return router;
- }
+}
