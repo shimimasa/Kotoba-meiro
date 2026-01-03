@@ -103,6 +103,7 @@ main.style.justifyContent = "center";
   canvas.setAttribute("aria-label", "game canvas");
 
   main.appendChild(canvas);
+  
   wrap.appendChild(main);
 
   // ===== controls (D-pad) =====
