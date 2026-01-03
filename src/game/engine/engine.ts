@@ -57,7 +57,9 @@ export type Engine = {
   update: (dt: number) => void;
   render: () => void;
   dispose: () => void;
+  getState: () => GameState;
 };
+
 
 export function createEngine(opts: {
   canvas: HTMLCanvasElement;
@@ -299,6 +301,10 @@ const template =
       if (!state.running) return;
       if (typeof renderer.render === "function") renderer.render();
     },
+    getState() {
+            // GameStateは最小定義でもOK。HUD/Resultが読むために公開
+            return state as GameState;
+          },
 
     dispose() {
       state.running = false;
