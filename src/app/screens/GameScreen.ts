@@ -1,12 +1,14 @@
 import type { Router } from "../router";
 import { createEngine } from "../../game/engine/engine";
 import { startLoop } from "../../game/engine/gameLoop";
+import type { GameResult } from "../../game/engine/engine";
 
 export function GameScreen(router: Router): HTMLElement {
   const wrap = document.createElement("div");
   wrap.style.display = "grid";
-  wrap.style.gridTemplateRows = "auto 1fr";
-  wrap.style.height = "100vh";
+  wrap.style.gridTemplateRows = "auto auto 1fr";
+    // iOS対策: 100vhより100dvhが安定
+    (wrap.style as any).height = "100dvh";
   wrap.style.fontFamily = "system-ui, sans-serif";
   wrap.style.background = "white";
   wrap.style.position = "relative"; // ←これ必須
@@ -37,13 +39,48 @@ export function GameScreen(router: Router): HTMLElement {
   hintLabel.textContent = router.getSettings().hintEnabled ? "ヒント：ON" : "ヒント：OFF";
 
   top.append(backBtn, hintLabel);
+   wrap.appendChild(top);
+ 
+  // --- HUD（情報表示）
+  const hud = document.createElement("div");
+  hud.style.display = "grid";
+  hud.style.gridTemplateColumns = "1fr auto";
+  hud.style.rowGap = "6px";
+  hud.style.columnGap = "12px";
+  hud.style.padding = "10px 16px";
+  hud.style.borderBottom = "1px solid #f0f0f0";
+  hud.style.fontSize = "14px";
+  hud.style.lineHeight = "1.2";
+
+  const nextEl = document.createElement("div");
+  nextEl.style.fontWeight = "600";
+  nextEl.textContent = "つぎ：-";
+
+  const timeEl = document.createElement("div");
+  timeEl.style.opacity = "0.85";
+  timeEl.style.textAlign = "right";
+  timeEl.textContent = "⏱ 0:00";
+
+  const dotsEl = document.createElement("div");
+  dotsEl.style.opacity = "0.9";
+  dotsEl.textContent = "●●●●●";
+
+  const scoreEl = document.createElement("div");
+  scoreEl.style.opacity = "0.85";
+  scoreEl.style.textAlign = "right";
+  scoreEl.textContent = "score: 0";
+
+  hud.append(nextEl, timeEl, dotsEl, scoreEl);
+  wrap.appendChild(hud);
 
   // --- main (canvas container)
   const main = document.createElement("div");
-  main.style.position = "relative";
-  main.style.overflow = "hidden";
-  main.style.background = "#f7f7f7";
-  main.style.touchAction = "none"; // スクロール/ピンチ干渉を減らす
+   main.style.position = "relative";
+   main.style.overflow = "hidden";
+   main.style.display = "grid";
+   main.style.placeItems = "center";
+  // 下にD-padが来る前提で余白を確保（スマホの安全域に強い）
+  main.style.paddingBottom = "140px";
 
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
@@ -182,16 +219,49 @@ const cleanupDpad = () => {
 
   const stop = startLoop(engine);
 
+  // --- HUD 更新（engineのstateを参照）
+  let raf = 0;
+  const fmtTime = (sec: number) => {
+    const s = Math.max(0, Math.floor(sec));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, "0")}`;
+  };
+  const updateHud = () => {
+        const maze = (engine.getState() as any).maze as any | undefined;
+        const elapsed = maze?.elapsedSec ?? 0;
+    timeEl.textContent = `⏱ ${fmtTime(elapsed)}`;
+
+    if (maze?.letters?.length) {
+            const total = maze.letters.length;
+            const idx = maze.nextLetterIndex ?? 0;
+            const next = maze.letters[idx]?.letter ?? "-";
+      nextEl.textContent = `つぎ：${next}`;
+
+      // 進捗ドット：済=● / 未=○
+      const done = Math.max(0, Math.min(total, idx));
+      dotsEl.textContent = `${"●".repeat(done)}${"○".repeat(total - done)}`;
+    } else {
+      nextEl.textContent = "つぎ：-";
+      dotsEl.textContent = "";
+    }
+
+    // （必要なら）スコア表示もここで統一
+    // scoreEl.textContent = `score:${maze?.score ?? 0}`;
+    scoreEl.textContent = `score: ${maze?.score ?? 0}`;
+    raf = requestAnimationFrame(updateHud);
+  };
+  raf = requestAnimationFrame(updateHud);
+
   // DOMから外れたら止める
   const mo = new MutationObserver(() => {
     if (!wrap.isConnected) {
-      stop();
-      cleanupDpad();
+      try { stop(); } catch {}
+      try { cancelAnimationFrame(raf); } catch {}
+      try { engine.dispose(); } catch {}
       mo.disconnect();
     }
   });
   mo.observe(document.body, { childList: true, subtree: true });
-
-  wrap.append(top, main);
   return wrap;
 }
