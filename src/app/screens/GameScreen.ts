@@ -97,6 +97,9 @@ export function GameScreen(router: Router): HTMLElement {
   canvas.style.touchAction = "none";
   canvas.setAttribute("aria-label", "game canvas");
   main.append(canvas);
+  // dpadは fixed なので main に入れない（canvasのセンタリングが崩れる原因になる）
+  // wrap配下に置く（fixedなのでどこでもOK）
+  // ※ wrap がこのスコープにある前提
 
   // --- D-pad (mobile)
   const dpadWrap = document.createElement("div");
@@ -111,18 +114,16 @@ export function GameScreen(router: Router): HTMLElement {
   dpad.style.gridTemplateRows = "64px 64px 64px";
   dpad.style.gap = "10px";
 
-  // レイアウトから外して、左下に固定表示
-  dpadWrap.style.position = "absolute";
-  dpadWrap.style.left = "12px";
-  dpadWrap.style.bottom = "12px";
+    // レイアウトに影響させず、画面左下に固定（PCでも見えるようにする）
+  dpadWrap.style.position = "fixed";
+  dpadWrap.style.left = "16px";
+  dpadWrap.style.bottom = "16px";
+  dpadWrap.style.marginTop = "0";
   dpadWrap.style.zIndex = "50";
-  dpadWrap.style.padding = "10px";   
-  dpadWrap.style.borderRadius = "14px";
-  dpadWrap.style.background = "rgba(255,255,255,0.0)";
+  dpadWrap.style.pointerEvents = "auto";
 
-  // pointerがcoarse(=タッチ)の端末だけ表示（PCでは邪魔になりやすい）
-  const isTouch = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
-  dpadWrap.style.display = isTouch ? "grid" : "none";
+  // PCでも常に表示（邪魔ならここを settings 連動にしてトグル化も可能）
+  dpadWrap.style.display = "grid";
 
   const makeBtn = (label: string) => {
     const b = document.createElement("button");
