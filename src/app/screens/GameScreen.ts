@@ -3,8 +3,18 @@
  import { createEngine } from "../../game/engine/engine"; 
 
  export function GameScreen(router: Router): HTMLElement {
+
+  const root = document.createElement("div");
+   root.className = "screen game";
+ 
+  const isTouch =
+    "ontouchstart" in window ||
+    (navigator.maxTouchPoints ?? 0) > 0 ||
+    (navigator as any).msMaxTouchPoints > 0;
+
   const wrap = document.createElement("div");
   Object.assign(wrap.style, {
+    position: "relative",
     height: "100%",
     width: "100%",
     display: "flex",
@@ -12,71 +22,95 @@
     background: "transparent",
   });
 
-  // ===== HUD（上1本） =====
-  const hud = document.createElement("div");
-  Object.assign(hud.style, {
-    height: "56px",
-    minHeight: "56px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 12px",
-    boxSizing: "border-box",
-    background: "rgba(255,255,255,0.92)",
-    borderBottom: "1px solid rgba(0,0,0,0.06)",
-  });
+  // ===== Single HUD bar (top only) =====
+  const hudBar = document.createElement("div");
+  hudBar.style.display = "flex";
+  hudBar.style.alignItems = "center";
+  hudBar.style.justifyContent = "space-between";
+  hudBar.style.padding = "10px 14px";
+  hudBar.style.background = "#f5f5f5";
+  hudBar.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
+  hudBar.style.flex = "0 0 auto";
 
-  const left = document.createElement("div");
-  Object.assign(left.style, { display: "flex", alignItems: "center", gap: "12px" });
+  const hudLeft = document.createElement("div");
+  hudLeft.style.display = "flex";
+  hudLeft.style.alignItems = "center";
+  hudLeft.style.gap = "14px";
 
-  const backBtn = document.createElement("button");
-  backBtn.textContent = "← もどる";
-  Object.assign(backBtn.style, {
-    padding: "8px 12px",
-    borderRadius: "999px",
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: "#fff",
-    cursor: "pointer",
-  });
-  backBtn.addEventListener("click", () => router.go("start"));
-  left.appendChild(backBtn);
+  const back = document.createElement("button");
+  back.textContent = "← もどる";
+  back.onclick = () => router.go("start");
+  back.style.border = "1px solid rgba(0,0,0,0.18)";
+  back.style.background = "#fff";
+  back.style.padding = "8px 12px";
+  back.style.borderRadius = "999px";
+  back.style.cursor = "pointer";
 
-  const status = document.createElement("div");
-  Object.assign(status.style, { display: "flex", flexDirection: "column", lineHeight: "1.2" });
+  const statusBlock = document.createElement("div");
+  statusBlock.style.display = "flex";
+  statusBlock.style.flexDirection = "column";
+  statusBlock.style.gap = "2px";
+  statusBlock.style.lineHeight = "1.15";
 
   const nextLine = document.createElement("div");
-  nextLine.textContent = "つぎ：-　あと-こ";
-  Object.assign(nextLine.style, { fontWeight: "700" });
+  nextLine.textContent = `つぎ：-`;
+  nextLine.style.fontSize = "20px";
+  nextLine.style.fontWeight = "700";
 
   const subLine = document.createElement("div");
-  subLine.textContent = "score: 0  time: 0:00";
-  Object.assign(subLine.style, { fontSize: "12px", opacity: "0.8" });
+  subLine.style.display = "flex";
+  subLine.style.gap = "12px";
+  subLine.style.fontSize = "14px";
+  subLine.style.color = "rgba(0,0,0,0.65)";
 
-  status.appendChild(nextLine);
-  status.appendChild(subLine);
-  left.appendChild(status);
+  const remainLine = document.createElement("span");
+  remainLine.textContent = "あと0こ";
 
-  const right = document.createElement("div");
-  Object.assign(right.style, { display: "flex", alignItems: "center", gap: "10px" });
+  const livesLine = document.createElement("span");
+  livesLine.textContent = "○○○○○";
+
+  subLine.appendChild(remainLine);
+  subLine.appendChild(livesLine);
+
+  statusBlock.appendChild(nextLine);
+  statusBlock.appendChild(subLine);
+
+  hudLeft.appendChild(back);
+  hudLeft.appendChild(statusBlock);
+
+  const hudRight = document.createElement("div");
+  hudRight.style.display = "flex";
+  hudRight.style.alignItems = "center";
+  hudRight.style.gap = "14px";
 
   const hintLabel = document.createElement("div");
-  hintLabel.textContent = "ヒント：ON";
-  Object.assign(hintLabel.style, { fontWeight: "600" });
-  right.appendChild(hintLabel);
+  hintLabel.textContent = `ヒント：${router.getSettings().hintEnabled ? "ON" : "OFF"}`;
 
-  // PC操作ヒント（超軽微）
   const pcHint = document.createElement("div");
   pcHint.textContent = "←↑→↓でうごかす";
-  Object.assign(pcHint.style, { fontSize: "12px", opacity: "0.7", marginLeft: "8px" });
-  right.appendChild(pcHint);
+  pcHint.style.fontSize = "12px";
+  pcHint.style.color = "rgba(0,0,0,0.55)";
+  pcHint.style.display = isTouch ? "none" : "block";
 
-  hud.appendChild(left);
-  hud.appendChild(right);
+  const timerScore = document.createElement("div");
+  timerScore.style.display = "flex";
+  timerScore.style.flexDirection = "column";
+  timerScore.style.alignItems = "flex-end";
+  timerScore.style.fontSize = "14px";
+  timerScore.innerHTML = `<div>⏱ 0:00</div><div>score: 0</div>`;
+
+  hudRight.appendChild(hintLabel);
+  hudRight.appendChild(pcHint);
+  hudRight.appendChild(timerScore);
+
+  hudBar.appendChild(hudLeft);
+  hudBar.appendChild(hudRight);
 
   // ===== メイン（黒背景＋中央固定） =====
   const main = document.createElement("div");
   Object.assign(main.style, {
-    flex: "1",
+  width: "100%",
+　　flex: "1 1 auto",
     minHeight: "0",
     display: "flex",
     alignItems: "center",
@@ -178,7 +212,7 @@
   // 画面破棄フック（router側が拾えるなら）
   (wrap as any).cleanup = cleanup;
 
-  wrap.appendChild(hud);
+  wrap.appendChild(hudBar);
   wrap.appendChild(main);
   return wrap;
  }
