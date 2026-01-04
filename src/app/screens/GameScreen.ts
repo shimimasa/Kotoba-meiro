@@ -6,21 +6,12 @@ export function GameScreen(router: Router): HTMLElement {
   // ===== root =====
   const wrap = document.createElement("div");
 
-// ✅ 画面全体を固定して、ページスクロールを殺す
-wrap.style.position = "fixed";
-wrap.style.inset = "0";
-wrap.style.overflow = "hidden";
-
-// ✅ レイアウトは縦flex（top/hud/main）
-wrap.style.display = "flex";
-wrap.style.flexDirection = "column";
-
-// iOS対策: 100vhより100dvhが安定
-(wrap.style as any).height = "100dvh";
-
-wrap.style.fontFamily = "system-ui, sans-serif";
-wrap.style.background = "white";
-
+wrap.style.display = "grid";
+  wrap.style.gridTemplateRows = "auto auto 1fr auto";
+  (wrap.style as any).height = "100dvh"; // iOS対策
+  wrap.style.overflow = "hidden";
+  wrap.style.background = "white";
+  wrap.style.fontFamily = "system-ui, sans-serif";
   // ===== top bar =====
   const top = document.createElement("div");
   top.style.display = "flex";
@@ -103,25 +94,54 @@ main.style.justifyContent = "center";
   canvas.setAttribute("aria-label", "game canvas");
 
   main.appendChild(canvas);
-  
-  wrap.appendChild(main);
+  main.appendChild(main);
+ 
+  // --- D-pad（スマホのみ表示）
+  const dpad = document.createElement("div");
+  dpad.style.display = "grid";
+  dpad.style.gridTemplateColumns = "64px 64px 64px";
+  dpad.style.gridTemplateRows = "64px 64px 64px";
+  dpad.style.gap = "12px";
+  dpad.style.justifyContent = "start";
+  dpad.style.alignContent = "center";
+  dpad.style.padding = "16px";
+  dpad.style.userSelect = "none";
 
-  // ===== controls (D-pad) =====
-  const controls = document.createElement("div");
-  controls.style.display = "grid";
-  controls.style.placeItems = "center";
-  controls.style.padding = "14px 0";
-  // iPhone下のバー対策
-  (controls.style as any).paddingBottom = "calc(14px + env(safe-area-inset-bottom))";
+  const mkBtn = (label: string) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.style.width = "64px";
+    b.style.height = "64px";
+    b.style.borderRadius = "16px";
+    b.style.border = "1px solid #ddd";
+    b.style.background = "white";
+    b.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+    b.style.fontSize = "20px";
+    b.style.cursor = "pointer";
+    (b.style as any).webkitTapHighlightColor = "transparent";
+    return b;
+  };
 
-  // ここは「既に作ってあるD-pad生成処理」があるなら差し替えてOK
-  // とりあえず配置だけ確実に見える箱を用意
-  const dpadHost = document.createElement("div");
-  dpadHost.id = "dpad-host";
-  controls.appendChild(dpadHost);
+  const up = mkBtn("▲");
+  const left = mkBtn("◀");
+  const right = mkBtn("▶");
+  const down = mkBtn("▼");
 
-  wrap.appendChild(controls);
+  // 配置（十字）
+  dpad.appendChild(document.createElement("div"));
+  dpad.appendChild(up);
+  dpad.appendChild(document.createElement("div"));
+  dpad.appendChild(left);
+  dpad.appendChild(document.createElement("div"));
+  dpad.appendChild(right);
+  dpad.appendChild(document.createElement("div"));
+  dpad.appendChild(down);
+  dpad.appendChild(document.createElement("div"));
 
+  wrap.appendChild(dpad);
+
+  const isTouch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  if (!isTouch) dpad.style.display = "none";
   // ===== engine start =====
   const engine = createEngine({
     canvas,

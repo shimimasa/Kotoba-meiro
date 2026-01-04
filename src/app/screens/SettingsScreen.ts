@@ -3,98 +3,99 @@ import type { Settings } from "../../game/data/settings";
 
 export function SettingsScreen(router: Router): HTMLElement {
   const wrap = document.createElement("div");
-  wrap.style.display = "grid";
-  wrap.style.gap = "12px";
-  wrap.style.padding = "20px";
+  wrap.style.padding = "24px";
   wrap.style.fontFamily = "system-ui, sans-serif";
-  wrap.style.maxWidth = "520px";
 
-  const h = document.createElement("h2");
-  h.textContent = "おとなのせってい";
-  h.style.margin = "0 0 8px 0";
-
-  const current = router.getSettings();
-
-  // ---- Hint row
+  const title = document.createElement("h2");
+  title.textContent = "Settings";
+  wrap.appendChild(title);
   const hintRow = document.createElement("div");
   hintRow.style.display = "flex";
   hintRow.style.alignItems = "center";
-  hintRow.style.justifyContent = "space-between";
   hintRow.style.gap = "12px";
-  hintRow.style.padding = "12px 14px";
-  hintRow.style.border = "1px solid rgba(0,0,0,0.12)";
-  hintRow.style.borderRadius = "14px";
-  hintRow.style.background = "white";
+  hintRow.style.marginTop = "16px";
 
   const hintLabel = document.createElement("div");
-  hintLabel.textContent = "ヒントを表示";
-  hintLabel.style.fontWeight = "700";
+  hintLabel.textContent = "ヒント";
 
-  const hint = document.createElement("input");
-  hint.type = "checkbox";
-  hint.checked = !!current.hintEnabled;
-  hint.style.transform = "scale(1.2)";
-  hint.style.cursor = "pointer";
+  const hintToggle = document.createElement("button");
+  hintToggle.style.padding = "10px 14px";
+  hintToggle.style.borderRadius = "999px";
+  hintToggle.style.border = "1px solid #ddd";
+  hintToggle.style.background = "white";
+  hintToggle.style.cursor = "pointer";
 
-  hintRow.append(hintLabel, hint);
+  const s = router.getSettings();
+  let hintEnabled = s.hintEnabled ?? true;
+  // level（型に無い可能性があるので any 経由）
+  let level = (s as any).level ?? 1;
 
-  // ---- Level row（追加）
-  const levelRow = document.createElement("div");
-  levelRow.style.display = "flex";
-  levelRow.style.alignItems = "center";
-  levelRow.style.justifyContent = "space-between";
-  levelRow.style.gap = "12px";
-  levelRow.style.padding = "12px 14px";
-  levelRow.style.border = "1px solid rgba(0,0,0,0.12)";
-  levelRow.style.borderRadius = "14px";
-  levelRow.style.background = "white";
+  const renderHint = () => {
+    hintToggle.textContent = hintEnabled ? "ON" : "OFF";
+  };
+  renderHint();
 
-  const levelLabel = document.createElement("div");
-  levelLabel.textContent = "レベル";
-  levelLabel.style.fontWeight = "700";
+  hintToggle.onclick = () => {
+    hintEnabled = !hintEnabled;
+    renderHint();
+    router.setSettings({ ...(router.getSettings() as any), hintEnabled, level } as any);
+  };
 
-  const levelSelect = document.createElement("select");
-  levelSelect.style.padding = "8px 10px";
-  levelSelect.style.borderRadius = "10px";
-  levelSelect.style.border = "1px solid rgba(0,0,0,0.18)";
-  levelSelect.style.background = "white";
-  levelSelect.style.cursor = "pointer";
-  levelSelect.innerHTML = `
-    <option value="1">Lv1</option>
-    <option value="2">Lv2</option>
-  `;
-  levelSelect.value = String(current.level ?? 1);
+  hintRow.append(hintLabel, hintToggle);
+  wrap.appendChild(hintRow);
 
-  levelRow.append(levelLabel, levelSelect);
+  // --- Level ---
+  const lvRow = document.createElement("div");
+  lvRow.style.display = "flex";
+  lvRow.style.alignItems = "center";
+  lvRow.style.gap = "12px";
+  lvRow.style.marginTop = "16px";
 
-  // ---- Note
-  const note = document.createElement("div");
-  note.style.fontSize = "13px";
-  note.style.opacity = "0.75";
-  note.textContent = "※設定は自動で保存されます";
+  const lvLabel = document.createElement("div");
+  lvLabel.textContent = "レベル";
 
-  // ---- Back
+  const lv1Btn = document.createElement("button");
+  const lv2Btn = document.createElement("button");
+  for (const b of [lv1Btn, lv2Btn]) {
+    b.style.padding = "10px 14px";
+    b.style.borderRadius = "12px";
+    b.style.border = "1px solid #ddd";
+    b.style.background = "white";
+    b.style.cursor = "pointer";
+  }
+  lv1Btn.textContent = "Lv1";
+  lv2Btn.textContent = "Lv2";
+
+  const renderLv = () => {
+    lv1Btn.style.fontWeight = level === 1 ? "700" : "400";
+    lv2Btn.style.fontWeight = level === 2 ? "700" : "400";
+  };
+  renderLv();
+
+  lv1Btn.onclick = () => {
+    level = 1;
+    renderLv();
+    router.setSettings({ ...(router.getSettings() as any), hintEnabled, level } as any);
+  };
+  lv2Btn.onclick = () => {
+    level = 2;
+    renderLv();
+    router.setSettings({ ...(router.getSettings() as any), hintEnabled, level } as any);
+  };
+
+  lvRow.append(lvLabel, lv1Btn, lv2Btn);
+  wrap.appendChild(lvRow);
+
   const back = document.createElement("button");
   back.textContent = "← もどる";
+  back.style.marginTop = "24px";
   back.style.padding = "10px 14px";
   back.style.borderRadius = "12px";
-  back.style.border = "1px solid rgba(0,0,0,0.15)";
+  back.style.border = "1px solid #ddd";
   back.style.background = "white";
   back.style.cursor = "pointer";
   back.onclick = () => router.go("start");
 
-  // ---- Events
-  hint.addEventListener("change", () => {
-    const next: Settings = { ...router.getSettings(), hintEnabled: hint.checked };
-    router.setSettings(next);
-  });
-
-  levelSelect.addEventListener("change", () => {
-    const nextLevel = Number(levelSelect.value);
-    const next: Settings = { ...router.getSettings(), level: nextLevel };
-    router.setSettings(next);
-  });
-
-  wrap.append(h, hintRow, levelRow, note, back);
+  wrap.appendChild(back);
   return wrap;
 }

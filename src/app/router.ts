@@ -58,7 +58,11 @@ export function createRouter(root: HTMLElement): Router {
     setSettings(next) {
       settings = next;
       const current = loadSave();
-      saveData({ ...current, hintEnabled: next.hintEnabled, level: next.level });
+      // level も保存（Settings型に level が無い場合でも落ちないよう保険）
+    saveData({
+        hintEnabled: next.hintEnabled,
+        level: (next as any).level ?? 1,
+      } as any);
     },
 
     setResult(r) {

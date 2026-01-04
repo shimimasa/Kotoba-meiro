@@ -68,6 +68,8 @@ export function createEngine(opts: {
   onResult?: (result: GameResult) => void;
   onExit?: () => void;
 }): Engine {
+  const level = opts.level ?? 1;
+  const templates = level === 2 ? pickLv2Template(Math.random) : lv1Templates;
   // GameState は最小定義でもOK。交差型で拡張して持つ
   const state: (GameState & { maze?: MazeState }) = {
     hintEnabled: opts.hintEnabled,
@@ -87,11 +89,12 @@ export function createEngine(opts: {
   }
 
   // ---- 迷路初期化 ----
-  const level = Math.max(1, Math.floor(opts.level ?? 1));
-const template =
-  level === 2
-    ? pickLv2Template(Math.random) // ここに rng を注入するなら差し替え
-    : lv1Templates[0];
+  // NOTE: "level" を他所で宣言している場合があるため、再宣言を避ける
+  const selectedLevel = Math.max(1, Math.floor(opts.level ?? 1));
+  const template =
+    selectedLevel === 2
+      ? pickLv2Template(Math.random) // ここに rng を注入するなら差し替え
+      : lv1Templates[0];
   const analyzed = analyzeTemplate(template); // { w,h,grid,walkable,start,goal }
   const plan = planSpawns(template); // letters: [{char,pos},...]
 
