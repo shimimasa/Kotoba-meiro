@@ -1,312 +1,421 @@
+import type { Router } from "../router";
+import { createEngine } from "../../game/engine/engine";
 
- import type { Router } from "../router";
- import { createEngine } from "../../game/engine/engine"; 
+/**
+ * GameScreen
+ * - HUD は上1本に統一
+ * - canvas は中央固定 + 「高さ基準」でスケール（max-height 優先）
+ * - D-pad はスマホ（pointer:coarse）時のみ左下 fixed
+ * - PC向け操作ヒント「←↑→↓でうごかす」を右上に表示
+ */
+export function GameScreen(router: Router): HTMLElement {
+  // --- styles (screen-scoped) ---
+  injectStyleOnce(
+    "screen-game-style",
+    `
+    :root { --hud-h: 56px; }
 
- export function GameScreen(router: Router): HTMLElement {
+    .gameRoot{
+      height: 100dvh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #0b0b0b; /* 余白も黒に寄せる */
+      color: #111;
+      overflow: hidden;
+    }
+
+    .hud{
+      height: var(--hud-h);
+      flex: 0 0 var(--hud-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: #efefef;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      color: #111;
+      box-sizing: border-box;
+    }
+
+    .hudLeft{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 180px;
+    }
+    .hudCenter{
+      flex: 1;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap: 10px;
+      font-size: 14px;
+      white-space: nowrap;
+      color:#222;
+      opacity: .95;
+    }
+    .hudRight{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap: 14px;
+      min-width: 240px;
+      white-space: nowrap;
+    }
+
+    .btn{
+      appearance: none;
+      border: 1px solid rgba(0,0,0,0.15);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    .hintText{
+      font-size: 13px;
+      color: #111;
+    }
+    .kbdHint{
+      font-size: 12px;
+      color: #333;
+      opacity: .8;
+    }
+
+    .stageWrap{
+      flex: 1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 12px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    /* canvas を「高さ基準」で最大化（横は自動） */
+    .canvasHost{
+      height: calc(100dvh - var(--hud-h) - 24px);
+      width: min(100%, 1100px);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow: hidden;
+    }
+    canvas.gameCanvas{
+      height: 100%;
+      width: auto;
+      max-width: 100%;
+      display:block;
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+      background: #111; /* 未描画時も黒 */
+      touch-action: none;
+    }
+
+    /* D-pad (mobile only) */
+    .dpad{
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 50;
+      display:none;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action: none;
+      pointer-events:auto;
+      gap: 10px;
+      align-items:center;
+      justify-content:center;
+    }
+    .dpadGrid{
+      display:grid;
+      grid-template-columns: 64px 64px 64px;
+      grid-template-rows: 64px 64px 64px;
+      gap: 10px;
+    }
+    .dpadBtn{
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.92);
+      color:#111;
+      font-size: 18px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.22);
+      cursor:pointer;
+      touch-action:none;
+    }
+    .dpadBtn:active{ transform: translateY(1px); }
+
+    /* pointer: coarse (スマホ/タブレット) で表示 */
+    @media (pointer: coarse) {
+      .dpad { display:flex; }
+    }
+  `
+  );
 
   const root = document.createElement("div");
-   root.className = "screen game";
- 
-  const isTouch =
-    "ontouchstart" in window ||
-    (navigator.maxTouchPoints ?? 0) > 0 ||
-    (navigator as any).msMaxTouchPoints > 0;
+  root.className = "gameRoot";
 
-  const wrap = document.createElement("div");
-  Object.assign(wrap.style, {
-    position: "relative",
-    height: "100%",
-    width: "100%",
-    display: "flex",
-    flexDirection: "column",
-    background: "transparent",
-  });
+  // --- HUD (single) ---
+  const hud = document.createElement("div");
+  hud.className = "hud";
 
-  // ===== Single HUD bar (top only) =====
-  const hudBar = document.createElement("div");
-  hudBar.style.display = "flex";
-  hudBar.style.alignItems = "center";
-  hudBar.style.justifyContent = "space-between";
-  hudBar.style.padding = "10px 14px";
-  hudBar.style.background = "#f5f5f5";
-  hudBar.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
-  hudBar.style.flex = "0 0 auto";
+  const left = document.createElement("div");
+  left.className = "hudLeft";
 
-  const hudLeft = document.createElement("div");
-  hudLeft.style.display = "flex";
-  hudLeft.style.alignItems = "center";
-  hudLeft.style.gap = "14px";
+  const backBtn = document.createElement("button");
+  backBtn.className = "btn";
+  backBtn.textContent = "← もどる";
+  backBtn.addEventListener("click", () => router.go("start"));
+  left.appendChild(backBtn);
 
-  const back = document.createElement("button");
-  back.textContent = "← もどる";
-  back.onclick = () => router.go("start");
-  back.style.border = "1px solid rgba(0,0,0,0.18)";
-  back.style.background = "#fff";
-  back.style.padding = "8px 12px";
-  back.style.borderRadius = "999px";
-  back.style.cursor = "pointer";
+  const center = document.createElement("div");
+  center.className = "hudCenter";
+  center.textContent = ""; // 後で更新
 
-  const statusBlock = document.createElement("div");
-  statusBlock.style.display = "flex";
-  statusBlock.style.flexDirection = "column";
-  statusBlock.style.gap = "2px";
-  statusBlock.style.lineHeight = "1.15";
-
-  const nextLine = document.createElement("div");
-  nextLine.textContent = `つぎ：-`;
-  nextLine.style.fontSize = "20px";
-  nextLine.style.fontWeight = "700";
-
-  const subLine = document.createElement("div");
-  subLine.style.display = "flex";
-  subLine.style.gap = "12px";
-  subLine.style.fontSize = "14px";
-  subLine.style.color = "rgba(0,0,0,0.65)";
-
-  const remainLine = document.createElement("span");
-  remainLine.textContent = "あと0こ";
-
-  const livesLine = document.createElement("span");
-  livesLine.textContent = "○○○○○";
-
-  subLine.appendChild(remainLine);
-  subLine.appendChild(livesLine);
-
-  statusBlock.appendChild(nextLine);
-  statusBlock.appendChild(subLine);
-
-  hudLeft.appendChild(back);
-  hudLeft.appendChild(statusBlock);
-
-  const hudRight = document.createElement("div");
-  hudRight.style.display = "flex";
-  hudRight.style.alignItems = "center";
-  hudRight.style.gap = "14px";
+  const right = document.createElement("div");
+  right.className = "hudRight";
 
   const hintLabel = document.createElement("div");
+  hintLabel.className = "hintText";
   hintLabel.textContent = `ヒント：${router.getSettings().hintEnabled ? "ON" : "OFF"}`;
 
-  const pcHint = document.createElement("div");
-  pcHint.textContent = "←↑→↓でうごかす";
-  pcHint.style.fontSize = "12px";
-  pcHint.style.color = "rgba(0,0,0,0.55)";
-  pcHint.style.display = isTouch ? "none" : "block";
+  const kbdHint = document.createElement("div");
+  kbdHint.className = "kbdHint";
+  kbdHint.textContent = "←↑→↓でうごかす";
 
-  const timerScore = document.createElement("div");
-  timerScore.style.display = "flex";
-  timerScore.style.flexDirection = "column";
-  timerScore.style.alignItems = "flex-end";
-  timerScore.style.fontSize = "14px";
-  timerScore.innerHTML = `<div>⏱ 0:00</div><div>score: 0</div>`;
+  right.appendChild(hintLabel);
+  right.appendChild(kbdHint);
 
-  hudRight.appendChild(hintLabel);
-  hudRight.appendChild(pcHint);
-  hudRight.appendChild(timerScore);
+  hud.appendChild(left);
+  hud.appendChild(center);
+  hud.appendChild(right);
 
-  hudBar.appendChild(hudLeft);
-  hudBar.appendChild(hudRight);
+  // --- Stage / Canvas ---
+  const stageWrap = document.createElement("div");
+  stageWrap.className = "stageWrap";
 
-  // ===== メイン（黒背景＋中央固定） =====
-  const main = document.createElement("div");
-  Object.assign(main.style, {
-  width: "100%",
-　　flex: "1 1 auto",
-    minHeight: "0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#111",
-    overflow: "hidden",
-    padding: "12px",
-    boxSizing: "border-box",
-  });
-
-  // 高さ基準でスケール：高さ=利用可能領域、幅=アスペクト比、どちらも上限は画面内
-  const frame = document.createElement("div");
-  Object.assign(frame.style, {
-    position: "relative",
-    height: "100%",
-    maxHeight: "100%",
-    aspectRatio: "16 / 9",
-    width: "auto",
-    maxWidth: "100%",
-    borderRadius: "16px",
-    overflow: "hidden",
-    background: "#000",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-  });
+  const canvasHost = document.createElement("div");
+  canvasHost.className = "canvasHost";
 
   const canvas = document.createElement("canvas");
-  Object.assign(canvas.style, {
-    width: "100%",
-    height: "100%",
-    display: "block",
-    touchAction: "none",
-  });
-  frame.appendChild(canvas);
-  main.appendChild(frame);
+  canvas.className = "gameCanvas";
+  canvas.setAttribute("aria-label", "game canvas");
+  canvasHost.appendChild(canvas);
+  stageWrap.appendChild(canvasHost);
 
-  // ===== Engine =====
+  // --- D-pad (mobile only) ---
+  const dpad = buildDpad();
+  root.appendChild(hud);
+  root.appendChild(stageWrap);
+  root.appendChild(dpad);
+
+  // --- Engine ---
+  const settings = router.getSettings();
   const engine = createEngine({
     canvas,
-    hintEnabled: router.getSettings().hintEnabled,
-    level: 1,
+    hintEnabled: settings.hintEnabled,
+    level: settings.level ?? 1,
     onExit: () => router.go("start"),
   });
 
-  // HUD更新（engine.getState() がある前提。無くても落ちない）
-  const fmtTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${String(s).padStart(2, "0")}`;
+  // クリック/タップでフォーカス（キー操作を確実に）
+  canvas.tabIndex = 0;
+  canvas.addEventListener("pointerdown", () => canvas.focus());
+
+  // --- loop ---
+  let rafId = 0;
+  let last = performance.now();
+
+  const tick = (t: number) => {
+    const dt = Math.min(0.05, (t - last) / 1000);
+    last = t;
+    try {
+      engine.update(dt);
+      engine.render();
+    } catch (e) {
+      // ここで落ちると真っ暗になりがち。停止してコンソールに出す。
+      console.error(e);
+      stopLoop();
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
   };
 
+  const startLoop = () => {
+    last = performance.now();
+    rafId = requestAnimationFrame(tick);
+  };
+  const stopLoop = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+  };
+
+  // HUD更新（engine に getState がある場合は活用、無いなら表示だけ維持）
   const hudTimer = window.setInterval(() => {
     const st = (engine as any).getState?.();
-    if (!st) return;
+    // st が取れない場合でも「ヒントON/OFF」だけは反映
+    hintLabel.textContent = `ヒント：${router.getSettings().hintEnabled ? "ON" : "OFF"}`;
 
-    const next = st.nextLabel ?? st.next ?? st.nextChar ?? "-";
-    const score = st.score ?? 0;
-    const timeSec = st.timeSec ?? st.time ?? st.elapsedSec ?? 0;
+    if (!st) {
+      // fallback: HUDの最低限
+      center.textContent = "";
+      return;
+    }
 
-    const total = st.lettersTotal ?? st.total ?? st.pelletsTotal ?? 0;
-    const done = st.lettersCollected ?? st.progress ?? st.pelletsEaten ?? 0;
-    const remaining = Math.max(0, Number(total) - Number(done));
+    // 「あと◯こ」= 残りの次文字（letters.length - nextLetterIndex）
+    const total = Array.isArray(st.letters) ? st.letters.length : 0;
+    const idx = typeof st.nextLetterIndex === "number" ? st.nextLetterIndex : 0;
+    const remain = Math.max(0, total - idx);
 
-    nextLine.textContent = `つぎ：${next}　あと${remaining}こ`;
-    subLine.textContent = `score: ${score}  time: ${fmtTime(Number(timeSec) || 0)}`;
+    const score = typeof st.score === "number" ? st.score : 0;
+    const time = typeof st.elapsedSec === "number" ? st.elapsedSec : 0;
 
-    const hintOn = Boolean(st.hintEnabled ?? router.getSettings().hintEnabled);
-    hintLabel.textContent = `ヒント：${hintOn ? "ON" : "OFF"}`;
-  }, 150);
+    const mm = Math.floor(time / 60);
+    const ss = Math.floor(time % 60);
+    const timeStr = `${mm}:${String(ss).padStart(2, "0")}`;
 
-  // ===== D-pad（スマホ時のみ） =====
-  const isCoarse = () => window.matchMedia?.("(pointer: coarse)").matches ?? false;
-  const isSmall = () => window.matchMedia?.("(max-width: 900px)").matches ?? false;
-  const shouldShowDpad = () => isCoarse() || isSmall();
+    // HUD 1本に整理（中央）
+    center.textContent = `あと${remain}　score:${score}　time:${timeStr}`;
+  }, 120);
 
-  const dpad = createDpad();
-  wrap.appendChild(dpad.el);
-
-  const updateDpad = () => {
-    dpad.el.style.display = shouldShowDpad() ? "grid" : "none";
-    pcHint.style.display = shouldShowDpad() ? "none" : "block";
+  // 画面破棄
+  const cleanup = () => {
+    stopLoop();
+    clearInterval(hudTimer);
+    try {
+      engine.dispose();
+    } catch {
+      // ignore
+    }
+    detachDpad(dpad);
   };
-  updateDpad();
 
-  const mq1 = window.matchMedia?.("(pointer: coarse)");
-  const mq2 = window.matchMedia?.("(max-width: 900px)");
-  const onMq = () => updateDpad();
-  mq1?.addEventListener?.("change", onMq);
-  mq2?.addEventListener?.("change", onMq);
+  // router 側で unmount される想定。念のため外部から呼べるように
+  (root as any).__cleanup = cleanup;
 
-  function cleanup() {
-    window.clearInterval(hudTimer);
-    mq1?.removeEventListener?.("change", onMq);
-    mq2?.removeEventListener?.("change", onMq);
-    dpad.dispose();
-    (engine as any).dispose?.();
-    (engine as any).stop?.();
+  // D-pad を engine の keydown に接続（window keydown 前提）
+  attachDpad(dpad);
+
+  // start
+  startLoop();
+
+  return root;
+}
+
+/* ---------------- helpers ---------------- */
+
+function injectStyleOnce(id: string, cssText: string) {
+  if (document.getElementById(id)) return;
+  const style = document.createElement("style");
+  style.id = id;
+  style.textContent = cssText;
+  document.head.appendChild(style);
+}
+
+function buildDpad(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "dpad";
+
+  const grid = document.createElement("div");
+  grid.className = "dpadGrid";
+
+  const empty1 = document.createElement("div");
+  const up = makeDpadBtn("▲", "ArrowUp");
+  const empty2 = document.createElement("div");
+
+  const left = makeDpadBtn("◀", "ArrowLeft");
+  const empty3 = document.createElement("div");
+  const right = makeDpadBtn("▶", "ArrowRight");
+
+  const empty4 = document.createElement("div");
+  const down = makeDpadBtn("▼", "ArrowDown");
+  const empty5 = document.createElement("div");
+
+  grid.appendChild(empty1);
+  grid.appendChild(up);
+  grid.appendChild(empty2);
+
+  grid.appendChild(left);
+  grid.appendChild(empty3);
+  grid.appendChild(right);
+
+  grid.appendChild(empty4);
+  grid.appendChild(down);
+  grid.appendChild(empty5);
+
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function makeDpadBtn(label: string, key: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.className = "dpadBtn";
+  btn.type = "button";
+  btn.textContent = label;
+  (btn as any).__key = key;
+  return btn;
+}
+
+function dispatchArrowKey(key: string) {
+  // engine が window.keydown を見ている前提
+  const ev = new KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+  });
+  window.dispatchEvent(ev);
+}
+
+function attachDpad(dpadRoot: HTMLElement) {
+  const buttons = Array.from(dpadRoot.querySelectorAll("button")) as HTMLButtonElement[];
+  const handlers: Array<() => void> = [];
+
+  // 連打しやすいように hold-repeat
+  for (const btn of buttons) {
+    const key = (btn as any).__key as string | undefined;
+    if (!key) continue;
+
+    let holdTimer: number | null = null;
+
+    const onDown = (e: Event) => {
+      e.preventDefault();
+      dispatchArrowKey(key);
+      if (holdTimer != null) window.clearInterval(holdTimer);
+      holdTimer = window.setInterval(() => dispatchArrowKey(key), 80);
+    };
+
+    const onUp = (e: Event) => {
+      e.preventDefault();
+      if (holdTimer != null) window.clearInterval(holdTimer);
+      holdTimer = null;
+    };
+
+    btn.addEventListener("pointerdown", onDown, { passive: false });
+    btn.addEventListener("pointerup", onUp, { passive: false });
+    btn.addEventListener("pointercancel", onUp, { passive: false });
+    btn.addEventListener("pointerleave", onUp, { passive: false });
+
+    handlers.push(() => {
+      btn.removeEventListener("pointerdown", onDown as any);
+      btn.removeEventListener("pointerup", onUp as any);
+      btn.removeEventListener("pointercancel", onUp as any);
+      btn.removeEventListener("pointerleave", onUp as any);
+      if (holdTimer != null) window.clearInterval(holdTimer);
+    });
   }
 
-  // 画面破棄フック（router側が拾えるなら）
-  (wrap as any).cleanup = cleanup;
-
-  wrap.appendChild(hudBar);
-  wrap.appendChild(main);
-  return wrap;
- }
-
-function createDpad() {
-  const el = document.createElement("div");
-  Object.assign(el.style, {
-    position: "fixed",
-    left: "16px",
-    bottom: "16px",
-    display: "grid",
-    gridTemplateColumns: "64px 64px 64px",
-    gridTemplateRows: "64px 64px 64px",
-    gap: "10px",
-    zIndex: "50",
-    userSelect: "none",
-    touchAction: "none",
-  });
-
-  const mkBtn = (label: string, key: string) => {
-    const b = document.createElement("button");
-    b.textContent = label;
-    Object.assign(b.style, {
-      width: "64px",
-      height: "64px",
-      borderRadius: "16px",
-      border: "1px solid rgba(0,0,0,0.15)",
-      background: "rgba(255,255,255,0.92)",
-      boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
-      cursor: "pointer",
-      fontSize: "22px",
-      lineHeight: "1",
-    });
-
-    let interval: number | null = null;
-    const fire = (type: "keydown" | "keyup") => {
-      const ev = new KeyboardEvent(type, { key, bubbles: true });
-      window.dispatchEvent(ev);
-    };
-
-    const start = (e: PointerEvent) => {
-      e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-      fire("keydown");
-      interval = window.setInterval(() => fire("keydown"), 120);
-    };
-
-    const end = (e: PointerEvent) => {
-      e.preventDefault();
-      if (interval != null) {
-        window.clearInterval(interval);
-        interval = null;
-      }
-      fire("keyup");
-    };
-
-    b.addEventListener("pointerdown", start);
-    b.addEventListener("pointerup", end);
-    b.addEventListener("pointercancel", end);
-    b.addEventListener("pointerleave", end);
-
-    return {
-      b,
-      dispose: () => {
-        b.removeEventListener("pointerdown", start);
-        b.removeEventListener("pointerup", end);
-        b.removeEventListener("pointercancel", end);
-        b.removeEventListener("pointerleave", end);
-      },
-    };
-  };
-
-  const up = mkBtn("▲", "ArrowUp");
-  const left = mkBtn("◀", "ArrowLeft");
-  const right = mkBtn("▶", "ArrowRight");
-  const down = mkBtn("▼", "ArrowDown");
-
-  el.appendChild(document.createElement("div"));
-  el.appendChild(up.b);
-  el.appendChild(document.createElement("div"));
-  el.appendChild(left.b);
-  el.appendChild(document.createElement("div"));
-  el.appendChild(right.b);
-  el.appendChild(document.createElement("div"));
-  el.appendChild(down.b);
-  el.appendChild(document.createElement("div"));
-
-  return {
-    el,
-    dispose: () => {
-      up.dispose();
-      left.dispose();
-      right.dispose();
-      down.dispose();
-    },
-  };
+  (dpadRoot as any).__detach = () => handlers.forEach((h) => h());
 }
+
+function detachDpad(dpadRoot: HTMLElement) {
+  (dpadRoot as any).__detach?.();
+}
+
