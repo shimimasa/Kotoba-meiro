@@ -1,68 +1,70 @@
- import type { Settings } from "../game/data/settings";
-
- import { GameScreen } from "./screens/GameScreen";
- import { ResultScreen } from "./screens/ResultScreen";
- import { SettingsScreen } from "./screens/SettingsScreen";
- import { StartScreen } from "./screens/StartScreen";
- import type { GameResult } from "../game/engine/engine";
- import { defaultSettings, loadSettings, saveSettings } from "../game/data/save";
+import type { Settings } from "../game/data/settings";
+import type { GameResult } from "../game/engine/engine";
+import { loadSave, saveData, type SaveData } from "../game/data/save";
 
 export type RouteName = "start" | "settings" | "game" | "result";
- 
- export type Router = {
-   go: (to: RouteName) => void;
-   getSettings: () => Settings;
-   setSettings: (next: Settings) => void;
+
+export type ScreenFactory = (router: Router) => HTMLElement;
+
+export type Router = {
+  register: (name: RouteName, factory: ScreenFactory) => void;
+  go: (to: RouteName) => void;
+
+  getSettings: () => Settings;
+  setSettings: (next: Settings) => void;
+
   getResult: () => GameResult | null;
-  setResult: (r: GameResult) => void;
- };
- 
- export function createRouter(root: HTMLElement) {
-   
-  const save = loadSettings();
-   let settings: Settings = { ...defaultSettings, ...save };
-   let lastResult: GameResult | null = null;
- 
-   function clearRoot() {
-     root.innerHTML = "";
-   }
- 
-   const router: Router = {
-     go(to) {
-       clearRoot();
-       if (to === "start") {
-         root.appendChild(StartScreen(router));
-         return;
-       }
-       if (to === "settings") {
-         root.appendChild(SettingsScreen(router));
-         return;
-       }
-       if (to === "game") {
-         root.appendChild(GameScreen(router));
-         return;
-       }
-      if (to === "result") {
-        root.appendChild(ResultScreen(router));
-        return;
-      }
-       const _exhaustive: never = to;
-       return _exhaustive;
-     },
+  setResult: (r: GameResult | null) => void;
+};
+
+export function createRouter(root: HTMLElement): Router {
+  const routes = new Map<RouteName, ScreenFactory>();
+
+  const save = loadSave();
+  let settings: Settings = {
+    hintEnabled: save.hintEnabled,
+    level: 1 as number,
+  };
+
+  let lastResult: GameResult | null = null;
+
+  function clearRoot() {
+    root.innerHTML = "";
+  }
+
+  function render(to: RouteName) {
+    const factory = routes.get(to);
+    if (!factory) throw new Error(`Route not registered: ${to}`);
+    clearRoot();
+    root.appendChild(factory(router));
+  }
+
+  const router: Router = {
+    register(name, factory) {
+      routes.set(name, factory);
+    },
+
+    go(to) {
+      render(to);
+    },
+
+    getSettings() {
+      return settings;
+    },
+
+    setSettings(next) {
+      settings = next;
+      saveData({ hintEnabled: next.hintEnabled } as SaveData);
+    },
+
     getResult() {
       return lastResult;
     },
+
     setResult(r) {
       lastResult = r;
     },
-     getSettings() {
-       return settings;
-     },
-     setSettings(next) {
-       settings = next;
-       saveSettings(settings);
-     },
-   };
- 
-   return router;
- }
+  };
+
+  return router;
+}
