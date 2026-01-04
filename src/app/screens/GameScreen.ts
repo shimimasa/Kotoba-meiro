@@ -30,7 +30,7 @@ export function GameScreen(router: Router): HTMLElement {
   wrap.style.inset = "0";
   wrap.style.display = "grid";
   wrap.style.gridTemplateRows = "auto 1fr";
-  wrap.style.background = "white";
+  wrap.style.background = "#000";
   wrap.style.overflow = "hidden";
   // ===== Top HUD (1本に統一) =====
   const topBar = document.createElement("div");
@@ -73,12 +73,15 @@ export function GameScreen(router: Router): HTMLElement {
 
   const progressEl = document.createElement("div");
   progressEl.style.fontSize = "16px";
-  progressEl.textContent = "progress: 0/0";
+  progressEl.textContent = "あと0個";
 
+  const pcHint = document.createElement("div");
+  pcHint.className = "pcHint";
+  pcHint.textContent = "←↑→↓でうごかす";
   leftHud.appendChild(nextEl);
   leftHud.appendChild(dotsEl);
   leftHud.appendChild(progressEl);
-
+  leftHud.appendChild(pcHint);
   leftBox.appendChild(backBtn);
   leftBox.appendChild(leftHud);
 
