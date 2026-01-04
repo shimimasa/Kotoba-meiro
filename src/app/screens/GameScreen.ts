@@ -1,158 +1,126 @@
-import type { Router } from "../router";
-import { createEngine } from "../../game/engine/engine";
-import { startLoop } from "../../game/engine/gameLoop";
-import type { GameResult } from "../../game/engine/engine";
 
-type AnyEngine = {
-  destroy?: () => void;
-  getState?: () => any;
-};
+ import type { Router } from "../router";
+ import { createEngine } from "../../game/engine/engine"; 
 
-function isMobileLike(): boolean {
-  const coarse =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(pointer: coarse)")?.matches;
-  return Boolean(coarse) || window.innerWidth < 900;
-}
-
-function dispatchArrow(key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") {
-  const down = new KeyboardEvent("keydown", { key, bubbles: true });
-  const up = new KeyboardEvent("keyup", { key, bubbles: true });
-  window.dispatchEvent(down);
-  // engine 側が「押しっぱなし」を扱う場合もあるので、短めに離す
-  window.setTimeout(() => window.dispatchEvent(up), 16);
-}
-
-export function GameScreen(router: Router): HTMLElement {
-  // ===== Root layout =====
+ export function GameScreen(router: Router): HTMLElement {
   const wrap = document.createElement("div");
-  wrap.style.position = "fixed";
-  wrap.style.inset = "0";
-  wrap.style.display = "grid";
-  wrap.style.gridTemplateRows = "auto 1fr";
-  wrap.style.background = "#000";
-  wrap.style.overflow = "hidden";
-  // ===== Top HUD (1本に統一) =====
-  const topBar = document.createElement("div");
-  topBar.style.display = "flex";
-  topBar.style.alignItems = "flex-start";
-  topBar.style.justifyContent = "space-between";
-  topBar.style.gap = "12px";
-  topBar.style.padding = "10px 12px";
-  topBar.style.borderBottom = "1px solid #eee";
-  topBar.style.background = "white";
+  Object.assign(wrap.style, {
+    height: "100%",
+    width: "100%",
+    display: "flex",
+    flexDirection: "column",
+    background: "transparent",
+  });
 
-  const leftBox = document.createElement("div");
-  leftBox.style.display = "flex";
-  leftBox.style.alignItems = "flex-start";
-  leftBox.style.gap = "12px";
+  // ===== HUD（上1本） =====
+  const hud = document.createElement("div");
+  Object.assign(hud.style, {
+    height: "56px",
+    minHeight: "56px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 12px",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,0.92)",
+    borderBottom: "1px solid rgba(0,0,0,0.06)",
+  });
+
+  const left = document.createElement("div");
+  Object.assign(left.style, { display: "flex", alignItems: "center", gap: "12px" });
 
   const backBtn = document.createElement("button");
   backBtn.textContent = "← もどる";
-  backBtn.style.padding = "8px 14px";
-  backBtn.style.border = "1px solid #ddd";
-  backBtn.style.borderRadius = "999px";
-  backBtn.style.background = "white";
-  backBtn.style.cursor = "pointer";
-  backBtn.onclick = () => router.go("start");
+  Object.assign(backBtn.style, {
+    padding: "8px 12px",
+    borderRadius: "999px",
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "#fff",
+    cursor: "pointer",
+  });
+  backBtn.addEventListener("click", () => router.go("start"));
+  left.appendChild(backBtn);
 
-  const leftHud = document.createElement("div");
-  leftHud.style.display = "flex";
-  leftHud.style.flexDirection = "column";
-  leftHud.style.gap = "4px";
-  leftHud.style.paddingTop = "2px";
+  const status = document.createElement("div");
+  Object.assign(status.style, { display: "flex", flexDirection: "column", lineHeight: "1.2" });
 
-  const nextEl = document.createElement("div");
-  nextEl.style.fontSize = "18px";
-  nextEl.style.fontWeight = "700";
-  nextEl.textContent = "つぎ: -";
+  const nextLine = document.createElement("div");
+  nextLine.textContent = "つぎ：-　あと-こ";
+  Object.assign(nextLine.style, { fontWeight: "700" });
 
-  const dotsEl = document.createElement("div");
-  dotsEl.style.fontSize = "18px";
-  dotsEl.textContent = "○○○○○";
+  const subLine = document.createElement("div");
+  subLine.textContent = "score: 0  time: 0:00";
+  Object.assign(subLine.style, { fontSize: "12px", opacity: "0.8" });
 
-  const progressEl = document.createElement("div");
-  progressEl.style.fontSize = "16px";
-  progressEl.textContent = "あと0個";
+  status.appendChild(nextLine);
+  status.appendChild(subLine);
+  left.appendChild(status);
 
-  const pcHint = document.createElement("div");
-  pcHint.className = "pcHint";
-  pcHint.textContent = "←↑→↓でうごかす";
-  leftHud.appendChild(nextEl);
-  leftHud.appendChild(dotsEl);
-  leftHud.appendChild(progressEl);
-  leftHud.appendChild(pcHint);
-  leftBox.appendChild(backBtn);
-  leftBox.appendChild(leftHud);
-
-  const rightBox = document.createElement("div");
-  rightBox.style.display = "flex";
-  rightBox.style.flexDirection = "column";
-  rightBox.style.alignItems = "flex-end";
-  rightBox.style.gap = "6px";
-  rightBox.style.paddingTop = "2px";
+  const right = document.createElement("div");
+  Object.assign(right.style, { display: "flex", alignItems: "center", gap: "10px" });
 
   const hintLabel = document.createElement("div");
-  hintLabel.textContent = "ヒント : ON";
-  hintLabel.style.fontSize = "18px";
-  hintLabel.style.fontWeight = "700";
+  hintLabel.textContent = "ヒント：ON";
+  Object.assign(hintLabel.style, { fontWeight: "600" });
+  right.appendChild(hintLabel);
 
-  const timeEl = document.createElement("div");
-  timeEl.style.fontSize = "18px";
-  timeEl.textContent = "⏱ 0:00";
+  // PC操作ヒント（超軽微）
+  const pcHint = document.createElement("div");
+  pcHint.textContent = "←↑→↓でうごかす";
+  Object.assign(pcHint.style, { fontSize: "12px", opacity: "0.7", marginLeft: "8px" });
+  right.appendChild(pcHint);
 
-  const scoreEl = document.createElement("div");
-  scoreEl.style.fontSize = "18px";
-  scoreEl.textContent = "score: 0";
+  hud.appendChild(left);
+  hud.appendChild(right);
 
-  rightBox.appendChild(hintLabel);
-  rightBox.appendChild(timeEl);
-  rightBox.appendChild(scoreEl);
-
-  topBar.appendChild(leftBox);
-  topBar.appendChild(rightBox);
-  wrap.appendChild(topBar);
-
-  // ===== Main (canvas 중앙固定 + 高さ基準スケール) =====
+  // ===== メイン（黒背景＋中央固定） =====
   const main = document.createElement("div");
-  main.style.display = "flex";
-  main.style.alignItems = "center";
-  main.style.justifyContent = "center";
-  main.style.padding = "12px";
-  main.style.minHeight = "0";
-  main.style.overflow = "hidden";
+  Object.assign(main.style, {
+    flex: "1",
+    minHeight: "0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#111",
+    overflow: "hidden",
+    padding: "12px",
+    boxSizing: "border-box",
+  });
+
+  // 高さ基準でスケール：高さ=利用可能領域、幅=アスペクト比、どちらも上限は画面内
+  const frame = document.createElement("div");
+  Object.assign(frame.style, {
+    position: "relative",
+    height: "100%",
+    maxHeight: "100%",
+    aspectRatio: "16 / 9",
+    width: "auto",
+    maxWidth: "100%",
+    borderRadius: "16px",
+    overflow: "hidden",
+    background: "#000",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+  });
 
   const canvas = document.createElement("canvas");
-  canvas.style.display = "block";
-  canvas.style.background = "#111";
-  canvas.style.borderRadius = "8px";
-  canvas.style.boxShadow = "0 6px 18px rgba(0,0,0,0.15)";
-  // 高さを基準に（縦に収まるように）スケール。横は auto で追従。
-  canvas.style.height = "min(calc(100dvh - 120px), 760px)";
-  canvas.style.width = "auto";
-  canvas.style.maxWidth = "min(96vw, 980px)";
-
-  main.appendChild(canvas);
-  wrap.appendChild(main);
+  Object.assign(canvas.style, {
+    width: "100%",
+    height: "100%",
+    display: "block",
+    touchAction: "none",
+  });
+  frame.appendChild(canvas);
+  main.appendChild(frame);
 
   // ===== Engine =====
-  const settings = router.getSettings();
-
-  // createEngine 側が「level必須」の型になっている環境でも動くように安全に渡す
   const engine = createEngine({
     canvas,
-    hintEnabled: settings.hintEnabled,
-    level: settings.level,
-    onResult: (result: GameResult) => {
-      router.setResult(result);
-      router.go("result");
-    },
+    hintEnabled: router.getSettings().hintEnabled,
+    level: 1,
     onExit: () => router.go("start"),
-  }) as unknown as AnyEngine;
+  });
 
-  const stop = startLoop(engine as any);
-
-  // ===== HUD refresh (DOM側のみ) =====
+  // HUD更新（engine.getState() がある前提。無くても落ちない）
   const fmtTime = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
@@ -160,142 +128,151 @@ export function GameScreen(router: Router): HTMLElement {
   };
 
   const hudTimer = window.setInterval(() => {
-    const st =
-      (engine.getState?.() ?? (engine as any).state ?? null) as any | null;
+    const st = (engine as any).getState?.();
     if (!st) return;
 
-    // 次の文字
     const next = st.nextLabel ?? st.next ?? st.nextChar ?? "-";
-    nextEl.textContent = `つぎ: ${next}`;
-
-    // ライフ
-    const lives: number = st.lives ?? st.life ?? 0;
-    const maxLives: number = st.maxLives ?? st.maxLife ?? 5;
-    const filled = "●".repeat(Math.max(0, Math.min(lives, maxLives)));
-    const empty = "○".repeat(Math.max(0, maxLives - Math.min(lives, maxLives)));
-    dotsEl.textContent = filled + empty;
-
-    // progress
-    const eaten = st.pelletsEaten ?? st.progress ?? st.lettersCollected ?? 0;
-    const total = st.pelletsTotal ?? st.total ?? st.lettersTotal ?? 0;
-    progressEl.textContent = `progress: ${eaten}/${total}`;
-
-    // time / score
-    const t = st.timeSec ?? st.time ?? 0;
     const score = st.score ?? 0;
-    timeEl.textContent = `⏱ ${fmtTime(Number(t) || 0)}`;
-    scoreEl.textContent = `score: ${Number(score) || 0}`;
+    const timeSec = st.timeSec ?? st.time ?? st.elapsedSec ?? 0;
 
-    // hint label
-    hintLabel.textContent = `ヒント : ${st.hintEnabled ?? settings.hintEnabled ? "ON" : "OFF"}`;
-  }, 120);
+    const total = st.lettersTotal ?? st.total ?? st.pelletsTotal ?? 0;
+    const done = st.lettersCollected ?? st.progress ?? st.pelletsEaten ?? 0;
+    const remaining = Math.max(0, Number(total) - Number(done));
 
-  // ===== D-pad (左下固定 / スマホのみ) =====
-  const dpadWrap = document.createElement("div");
-  dpadWrap.style.position = "fixed";
-  dpadWrap.style.left = "16px";
-  dpadWrap.style.bottom = "16px";
-  dpadWrap.style.zIndex = "60";
-  dpadWrap.style.display = "none";
-  dpadWrap.style.gap = "14px";
-  dpadWrap.style.alignItems = "center";
-  dpadWrap.style.justifyContent = "center";
-  dpadWrap.style.userSelect = "none";
-  dpadWrap.style.touchAction = "none";
+    nextLine.textContent = `つぎ：${next}　あと${remaining}こ`;
+    subLine.textContent = `score: ${score}  time: ${fmtTime(Number(timeSec) || 0)}`;
 
-  // 2x3 の簡易グリッド（中央空白）
-  dpadWrap.style.display = "grid";
-  dpadWrap.style.gridTemplateColumns = "64px 64px 64px";
-  dpadWrap.style.gridTemplateRows = "64px 64px 64px";
-  dpadWrap.style.gap = "10px";
+    const hintOn = Boolean(st.hintEnabled ?? router.getSettings().hintEnabled);
+    hintLabel.textContent = `ヒント：${hintOn ? "ON" : "OFF"}`;
+  }, 150);
 
-  const mkBtn = (label: string) => {
-    const b = document.createElement("button");
-    b.textContent = label;
-    b.style.width = "64px";
-    b.style.height = "64px";
-    b.style.borderRadius = "14px";
-    b.style.border = "1px solid #ddd";
-    b.style.background = "rgba(255,255,255,0.92)";
-    b.style.boxShadow = "0 10px 25px rgba(0,0,0,0.10)";
-    b.style.fontSize = "22px";
-    b.style.cursor = "pointer";
-    b.style.touchAction = "none";
-    return b;
+  // ===== D-pad（スマホ時のみ） =====
+  const isCoarse = () => window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  const isSmall = () => window.matchMedia?.("(max-width: 900px)").matches ?? false;
+  const shouldShowDpad = () => isCoarse() || isSmall();
+
+  const dpad = createDpad();
+  wrap.appendChild(dpad.el);
+
+  const updateDpad = () => {
+    dpad.el.style.display = shouldShowDpad() ? "grid" : "none";
+    pcHint.style.display = shouldShowDpad() ? "none" : "block";
   };
+  updateDpad();
 
-  const btnUp = mkBtn("▲");
-  const btnDown = mkBtn("▼");
-  const btnLeft = mkBtn("◀");
-  const btnRight = mkBtn("▶");
+  const mq1 = window.matchMedia?.("(pointer: coarse)");
+  const mq2 = window.matchMedia?.("(max-width: 900px)");
+  const onMq = () => updateDpad();
+  mq1?.addEventListener?.("change", onMq);
+  mq2?.addEventListener?.("change", onMq);
 
-  // 配置
-  // (0,1)=up / (1,0)=left / (1,2)=right / (2,1)=down
-  btnUp.style.gridColumn = "2";
-  btnUp.style.gridRow = "1";
-  btnLeft.style.gridColumn = "1";
-  btnLeft.style.gridRow = "2";
-  btnRight.style.gridColumn = "3";
-  btnRight.style.gridRow = "2";
-  btnDown.style.gridColumn = "2";
-  btnDown.style.gridRow = "3";
-
-  dpadWrap.appendChild(btnUp);
-  dpadWrap.appendChild(btnLeft);
-  dpadWrap.appendChild(btnRight);
- dpadWrap.appendChild(btnDown);
-  wrap.appendChild(dpadWrap);
-
-  const bindHold = (el: HTMLButtonElement, key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => {
-    let intervalId: number | null = null;
-    const start = () => {
-      dispatchArrow(key);
-      if (intervalId != null) return;
-      intervalId = window.setInterval(() => dispatchArrow(key), 70);
-    };
-    const stop = () => {
-      if (intervalId != null) window.clearInterval(intervalId);
-      intervalId = null;
-    };
-
-    el.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      el.setPointerCapture?.(e.pointerId);
-      start();
-    });
-    el.addEventListener("pointerup", (e) => {
-      e.preventDefault();
-      stop();
-    });
-    el.addEventListener("pointercancel", stop);
-    el.addEventListener("pointerleave", stop);
-
-    return stop;
-  };
-
-  const stopUp = bindHold(btnUp, "ArrowUp");
-  const stopDown = bindHold(btnDown, "ArrowDown");
-  const stopLeft = bindHold(btnLeft, "ArrowLeft");
-  const stopRight = bindHold(btnRight, "ArrowRight");
-
-  const updateDpadVisibility = () => {
-    dpadWrap.style.display = isMobileLike() ? "grid" : "none";
-  };
-  updateDpadVisibility();
-  window.addEventListener("resize", updateDpadVisibility);
-
-  // ===== Cleanup =====
-  wrap.addEventListener("DOMNodeRemoved", () => {
-    // 念のため（routerが差し替えでDOMをまるごと入れ替える場合）
-    window.removeEventListener("resize", updateDpadVisibility);
-    stopUp();
-    stopDown();
-    stopLeft();
-    stopRight();
+  function cleanup() {
     window.clearInterval(hudTimer);
-    stop?.();
-    engine.destroy?.();
+    mq1?.removeEventListener?.("change", onMq);
+    mq2?.removeEventListener?.("change", onMq);
+    dpad.dispose();
+    (engine as any).dispose?.();
+    (engine as any).stop?.();
+  }
+
+  // 画面破棄フック（router側が拾えるなら）
+  (wrap as any).cleanup = cleanup;
+
+  wrap.appendChild(hud);
+  wrap.appendChild(main);
+  return wrap;
+ }
+
+function createDpad() {
+  const el = document.createElement("div");
+  Object.assign(el.style, {
+    position: "fixed",
+    left: "16px",
+    bottom: "16px",
+    display: "grid",
+    gridTemplateColumns: "64px 64px 64px",
+    gridTemplateRows: "64px 64px 64px",
+    gap: "10px",
+    zIndex: "50",
+    userSelect: "none",
+    touchAction: "none",
   });
 
-  return wrap;
+  const mkBtn = (label: string, key: string) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    Object.assign(b.style, {
+      width: "64px",
+      height: "64px",
+      borderRadius: "16px",
+      border: "1px solid rgba(0,0,0,0.15)",
+      background: "rgba(255,255,255,0.92)",
+      boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
+      cursor: "pointer",
+      fontSize: "22px",
+      lineHeight: "1",
+    });
+
+    let interval: number | null = null;
+    const fire = (type: "keydown" | "keyup") => {
+      const ev = new KeyboardEvent(type, { key, bubbles: true });
+      window.dispatchEvent(ev);
+    };
+
+    const start = (e: PointerEvent) => {
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      fire("keydown");
+      interval = window.setInterval(() => fire("keydown"), 120);
+    };
+
+    const end = (e: PointerEvent) => {
+      e.preventDefault();
+      if (interval != null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+      fire("keyup");
+    };
+
+    b.addEventListener("pointerdown", start);
+    b.addEventListener("pointerup", end);
+    b.addEventListener("pointercancel", end);
+    b.addEventListener("pointerleave", end);
+
+    return {
+      b,
+      dispose: () => {
+        b.removeEventListener("pointerdown", start);
+        b.removeEventListener("pointerup", end);
+        b.removeEventListener("pointercancel", end);
+        b.removeEventListener("pointerleave", end);
+      },
+    };
+  };
+
+  const up = mkBtn("▲", "ArrowUp");
+  const left = mkBtn("◀", "ArrowLeft");
+  const right = mkBtn("▶", "ArrowRight");
+  const down = mkBtn("▼", "ArrowDown");
+
+  el.appendChild(document.createElement("div"));
+  el.appendChild(up.b);
+  el.appendChild(document.createElement("div"));
+  el.appendChild(left.b);
+  el.appendChild(document.createElement("div"));
+  el.appendChild(right.b);
+  el.appendChild(document.createElement("div"));
+  el.appendChild(down.b);
+  el.appendChild(document.createElement("div"));
+
+  return {
+    el,
+    dispose: () => {
+      up.dispose();
+      left.dispose();
+      right.dispose();
+      down.dispose();
+    },
+  };
 }
