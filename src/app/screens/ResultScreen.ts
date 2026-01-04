@@ -1,4 +1,5 @@
 import type { Router } from "../router";
+import type { GameResult } from "../../game/engine/engine";
 
 function fmtTime(sec: number) {
   const s = Math.max(0, sec);
@@ -8,7 +9,15 @@ function fmtTime(sec: number) {
 }
 
 export function ResultScreen(router: Router): HTMLElement {
-  const r = router.getResult();
+  const r0 = router.getResult();
+  if (!r0) {
+    // 結果が無い状態でResultに来た場合はStartへ戻す
+    router.go("start");
+    const fallback = document.createElement("div");
+    fallback.textContent = "結果が見つかりませんでした。";
+    return fallback;
+  }
+  const r: GameResult = r0;
   if (!r) {
     // 念のため
     const wrap = document.createElement("div");
@@ -73,7 +82,7 @@ export function ResultScreen(router: Router): HTMLElement {
     item("タイム", fmtTime(r.timeSec)),
     item("スコア", String(r.score)),
     item("ペレット", `${r.pelletsEaten}/${r.pelletsTotal}`),
-    item("文字", `${r.lettersCollected}/${r.lettersTotal}`)
+    item("文字", `${r.lettersCollected}/${r.lettersTotal}`),
   );
 
   const note = document.createElement("div");

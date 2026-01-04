@@ -1,59 +1,65 @@
+// src/app/screens/GameScreen.ts
 import type { Router } from "../router";
+import type { GameResult } from "../../game/engine/engine";
 import { createEngine } from "../../game/engine/engine";
 import { startLoop } from "../../game/engine/gameLoop";
 
 export function GameScreen(router: Router): HTMLElement {
-  // ===== root =====
   const wrap = document.createElement("div");
-
-wrap.style.display = "grid";
+  wrap.style.display = "grid";
   wrap.style.gridTemplateRows = "auto auto 1fr auto";
-  (wrap.style as any).height = "100dvh"; // iOS対策
-  wrap.style.overflow = "hidden";
+  wrap.style.width = "100%";
   wrap.style.background = "white";
-  wrap.style.fontFamily = "system-ui, sans-serif";
-  // ===== top bar =====
+  wrap.style.position = "relative";
+  wrap.style.overflow = "hidden";
+  // iOSで100vhが暴れるので dvh
+  (wrap.style as any).height = "100dvh";
+
+  // --- top bar
   const top = document.createElement("div");
   top.style.display = "flex";
-  top.style.alignItems = "center";
   top.style.justifyContent = "space-between";
-  top.style.padding = "10px 12px";
+  top.style.alignItems = "center";
+  top.style.padding = "10px 14px";
+  top.style.borderBottom = "1px solid #eee";
+  top.style.background = "white";
 
   const backBtn = document.createElement("button");
   backBtn.textContent = "← もどる";
   backBtn.style.padding = "10px 14px";
   backBtn.style.borderRadius = "999px";
   backBtn.style.border = "1px solid #ddd";
-  backBtn.style.background = "#fff";
-  backBtn.addEventListener("click", () => router.go("start"));
+  backBtn.style.background = "white";
+  backBtn.style.cursor = "pointer";
+  backBtn.onclick = () => router.go("start");
 
   const hintLabel = document.createElement("div");
-  hintLabel.style.opacity = "0.85";
   hintLabel.textContent = `ヒント：${router.getSettings().hintEnabled ? "ON" : "OFF"}`;
+  hintLabel.style.opacity = "0.85";
 
   top.append(backBtn, hintLabel);
-  wrap.appendChild(top);
 
-  // ===== HUD =====
+  // --- HUD
   const hud = document.createElement("div");
   hud.style.display = "flex";
-  hud.style.alignItems = "flex-start";
   hud.style.justifyContent = "space-between";
-  hud.style.padding = "10px 16px";
-  hud.style.gap = "16px";
+  hud.style.alignItems = "flex-start";
+  hud.style.padding = "10px 14px";
 
   const leftHud = document.createElement("div");
-  leftHud.style.display = "flex";
-  leftHud.style.flexDirection = "column";
+  leftHud.style.display = "grid";
   leftHud.style.gap = "6px";
 
   const nextEl = document.createElement("div");
-  nextEl.textContent = "つぎ：-";
+  nextEl.textContent = "つぎ: -";
 
   const dotsEl = document.createElement("div");
-  dotsEl.textContent = "○○○○○";
+  dotsEl.textContent = "";
 
-  leftHud.append(nextEl, dotsEl);
+  const progressEl = document.createElement("div");
+  progressEl.textContent = "progress: 0/0";
+
+  leftHud.append(nextEl, dotsEl, progressEl);
 
   const rightHud = document.createElement("div");
   rightHud.style.textAlign = "right";
@@ -66,48 +72,41 @@ wrap.style.display = "grid";
   scoreEl.textContent = "score: 0";
 
   rightHud.append(timeEl, scoreEl);
-
   hud.append(leftHud, rightHud);
-  wrap.appendChild(hud);
 
-  // ===== main (canvas) =====
+  // --- main (canvas)
   const main = document.createElement("div");
-
-// ✅ 余った高さをmainが全部受け持つ（canvasはこの中に収まる）
-main.style.flex = "1";
-main.style.minHeight = "0";        // ← これが超重要（オーバーフロー防止）
-main.style.position = "relative";
-main.style.overflow = "hidden";
-
-// 中央寄せ（好みでOK）
-main.style.display = "flex";
-main.style.alignItems = "center";
-main.style.justifyContent = "center";
-
-  main.style.padding = "8px 12px";
+  main.style.display = "grid";
+  main.style.placeItems = "center";
+  main.style.padding = "8px 10px";
+  main.style.overflow = "hidden";
 
   const canvas = document.createElement("canvas");
-  canvas.style.width = "100%";
-  canvas.style.height = "100%";   // ← mainがflex:1/minHeight:0ならOK
+  canvas.style.width = "min(92vmin, 720px)";
+  canvas.style.height = "min(92vmin, 720px)";
   canvas.style.display = "block";
-  canvas.style.touchAction = "none"; // スクロール/拡大を抑制
+  // 重要：iOSでスクロール/ズームに奪われない
+  canvas.style.touchAction = "none";
   canvas.setAttribute("aria-label", "game canvas");
+  main.append(canvas);
 
-  main.appendChild(canvas);
-  main.appendChild(main);
- 
-  // --- D-pad（スマホのみ表示）
+  // --- D-pad (mobile)
+  const dpadWrap = document.createElement("div");
+  dpadWrap.style.position = "relative";
+  dpadWrap.style.display = "grid";
+  dpadWrap.style.placeItems = "center";
+  dpadWrap.style.padding = "12px 0 14px 0";
+
   const dpad = document.createElement("div");
   dpad.style.display = "grid";
   dpad.style.gridTemplateColumns = "64px 64px 64px";
   dpad.style.gridTemplateRows = "64px 64px 64px";
-  dpad.style.gap = "12px";
-  dpad.style.justifyContent = "start";
-  dpad.style.alignContent = "center";
-  dpad.style.padding = "16px";
+  dpad.style.gap = "10px";
   dpad.style.userSelect = "none";
+  (dpad.style as any).WebkitUserSelect = "none";
+  (dpad.style as any).WebkitTouchCallout = "none";
 
-  const mkBtn = (label: string) => {
+  const makeBtn = (label: string) => {
     const b = document.createElement("button");
     b.textContent = label;
     b.style.width = "64px";
@@ -115,46 +114,47 @@ main.style.justifyContent = "center";
     b.style.borderRadius = "16px";
     b.style.border = "1px solid #ddd";
     b.style.background = "white";
-    b.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+    b.style.boxShadow = "0 8px 18px rgba(0,0,0,0.08)";
     b.style.fontSize = "20px";
     b.style.cursor = "pointer";
-    (b.style as any).webkitTapHighlightColor = "transparent";
+    b.style.touchAction = "manipulation"; // ダブルタップズーム抑止
     return b;
   };
 
-  const up = mkBtn("▲");
-  const left = mkBtn("◀");
-  const right = mkBtn("▶");
-  const down = mkBtn("▼");
+  const up = makeBtn("▲");
+  const left = makeBtn("◀");
+  const right = makeBtn("▶");
+  const down = makeBtn("▼");
 
-  // 配置（十字）
-  dpad.appendChild(document.createElement("div"));
-  dpad.appendChild(up);
-  dpad.appendChild(document.createElement("div"));
-  dpad.appendChild(left);
-  dpad.appendChild(document.createElement("div"));
-  dpad.appendChild(right);
-  dpad.appendChild(document.createElement("div"));
-  dpad.appendChild(down);
-  dpad.appendChild(document.createElement("div"));
+  // 配置
+  dpad.append(
+    document.createElement("div"), up, document.createElement("div"),
+    left, document.createElement("div"), right,
+    document.createElement("div"), down, document.createElement("div"),
+  );
+  dpadWrap.append(dpad);
 
-  wrap.appendChild(dpad);
+  // --- build DOM
+  wrap.append(top, hud, main, dpadWrap);
 
-  const isTouch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-  if (!isTouch) dpad.style.display = "none";
-  // ===== engine start =====
+  // ===== Engine start =====
+  const { hintEnabled, level } = router.getSettings();
+
   const engine = createEngine({
     canvas,
-    hintEnabled: router.getSettings().hintEnabled,
+    hintEnabled,
+    level,
+    onResult: (r: any) => {
+      router.setResult(r);
+      router.go("result");
+    },
     onExit: () => router.go("start"),
-    // もし onResult が必要ならここに追加（あなたの実装に合わせる）
-    // onResult: (result) => { router.setResult(result); router.go("result"); },
-    // level: router.getSettings().level ?? 1,
-  } as any);
+  });
 
-  const stop = startLoop(engine);
+  const stopLoop = startLoop(engine);
 
-  // ===== HUD update loop =====
+  // HUD更新（getStateを使う）
+  let raf = 0;
   const fmtTime = (sec: number) => {
     const s = Math.max(0, Math.floor(sec));
     const m = Math.floor(s / 60);
@@ -162,36 +162,56 @@ main.style.justifyContent = "center";
     return `${m}:${String(r).padStart(2, "0")}`;
   };
 
-  let raf = 0;
   const tickHud = () => {
-    // getState が無い場合でも落とさない
-    const st = (engine as any).getState?.() ?? (engine as any).state;
-    const maze = st?.maze;
+    const st = engine.getState?.();
+    const maze: any = (st as any)?.maze;
 
     const elapsed = maze?.elapsedSec ?? 0;
     timeEl.textContent = `⏱ ${fmtTime(elapsed)}`;
 
-    const score = maze?.score ?? 0;
+    const score = (st as any)?.score ?? 0;
     scoreEl.textContent = `score: ${score}`;
 
-    const total = maze?.letters?.length ?? 0;
+    const letters = maze?.letters ?? [];
     const idx = maze?.nextLetterIndex ?? 0;
-    const next = maze?.letters?.[idx]?.letter ?? "-";
-    nextEl.textContent = `つぎ：${next}`;
+    const total = letters.length || 0;
+    const next = letters[idx]?.letter ?? "-";
+    nextEl.textContent = `つぎ: ${next}`;
 
     const done = Math.max(0, Math.min(total, idx));
     dotsEl.textContent = `${"●".repeat(done)}${"○".repeat(Math.max(0, total - done))}`;
+
+    const eaten = maze?.pelletsEaten ?? 0;
+    const pelletsTotal = maze?.pelletsTotal ?? 0;
+    progressEl.textContent = `progress: ${eaten}/${pelletsTotal}`;
 
     raf = requestAnimationFrame(tickHud);
   };
   raf = requestAnimationFrame(tickHud);
 
-  // ===== dispose =====
-  wrap.addEventListener("remove", () => {
-    if (raf) cancelAnimationFrame(raf);
-    stop();
-    (engine as any).dispose?.();
+  // D-pad：1タップで1マス（連続移動が起きないよう “click” だけで送る）
+  const send = (dir: "up" | "down" | "left" | "right") => {
+    const input: any = (engine as any).input;
+    if (input?.enqueue) input.enqueue(dir);
+    else if (input?.setDirOnce) input.setDirOnce(dir);
+    else if ((engine as any).setDirOnce) (engine as any).setDirOnce(dir);
+  };
+
+  up.addEventListener("click", (e) => { e.preventDefault(); send("up"); });
+  down.addEventListener("click", (e) => { e.preventDefault(); send("down"); });
+  left.addEventListener("click", (e) => { e.preventDefault(); send("left"); });
+  right.addEventListener("click", (e) => { e.preventDefault(); send("right"); });
+
+  // 画面が外れたら停止
+  const mo = new MutationObserver(() => {
+    if (!wrap.isConnected) {
+      try { stopLoop?.(); } catch {}
+      try { cancelAnimationFrame(raf); } catch {}
+      mo.disconnect();
+    }
   });
+  mo.observe(document.body, { childList: true, subtree: true });
 
   return wrap;
 }
+

@@ -1,80 +1,68 @@
-import { StartScreen } from "./screens/StartScreen";
-import { SettingsScreen } from "./screens/SettingsScreen";
-import { GameScreen } from "./screens/GameScreen";
-import { ResultScreen } from "./screens/ResultScreen";
+ import type { Settings } from "../game/data/settings";
 
-import { loadSave, saveData } from "../game/data/save";
-import { defaultSettings, type Settings } from "../game/data/settings";
-import type { GameResult } from "../game/engine/engine";
+ import { GameScreen } from "./screens/GameScreen";
+ import { ResultScreen } from "./screens/ResultScreen";
+ import { SettingsScreen } from "./screens/SettingsScreen";
+ import { StartScreen } from "./screens/StartScreen";
+ import type { GameResult } from "../game/engine/engine";
+ import { defaultSettings, loadSettings, saveSettings } from "../game/data/save";
 
 export type RouteName = "start" | "settings" | "game" | "result";
-
-export type Router = {
-  go: (to: RouteName) => void;
-  getSettings: () => Settings;
-  setSettings: (next: Settings) => void;
-
-  // Result
-  setResult: (r: GameResult) => void;
+ 
+ export type Router = {
+   go: (to: RouteName) => void;
+   getSettings: () => Settings;
+   setSettings: (next: Settings) => void;
   getResult: () => GameResult | null;
-};
-
-export function createRouter(root: HTMLElement): Router {
-  // saved settings
-  const saved = loadSave();
-  let settings: Settings = {
-    ...defaultSettings,
-    hintEnabled: typeof saved.hintEnabled === "boolean" ? saved.hintEnabled : defaultSettings.hintEnabled,
-    level: typeof saved.level === "number" ? saved.level : defaultSettings.level,
-  };
-
-  // in-memory result
-  let lastResult: GameResult | null = null;
-
-  const mount = (el: HTMLElement) => {
-    root.innerHTML = "";
-    root.appendChild(el);
-  };
-
-  const router: Router = {
-    go(to) {
-      if (to === "start") return mount(StartScreen(router));
-      if (to === "settings") return mount(SettingsScreen(router));
-      if (to === "game") return mount(GameScreen(router));
+  setResult: (r: GameResult) => void;
+ };
+ 
+ export function createRouter(root: HTMLElement) {
+   
+  const save = loadSettings();
+   let settings: Settings = { ...defaultSettings, ...save };
+   let lastResult: GameResult | null = null;
+ 
+   function clearRoot() {
+     root.innerHTML = "";
+   }
+ 
+   const router: Router = {
+     go(to) {
+       clearRoot();
+       if (to === "start") {
+         root.appendChild(StartScreen(router));
+         return;
+       }
+       if (to === "settings") {
+         root.appendChild(SettingsScreen(router));
+         return;
+       }
+       if (to === "game") {
+         root.appendChild(GameScreen(router));
+         return;
+       }
       if (to === "result") {
-        // 結果が無いのに result へ来たら start へ戻す
-        if (!lastResult) return mount(StartScreen(router));
-        return mount(ResultScreen(router));
+        root.appendChild(ResultScreen(router));
+        return;
       }
-
-      // fallback
-      return mount(StartScreen(router));
-    },
-
-    getSettings() {
-      return settings;
-    },
-
-    setSettings(next) {
-      settings = next;
-      const current = loadSave();
-      // level も保存（Settings型に level が無い場合でも落ちないよう保険）
-    saveData({
-        hintEnabled: next.hintEnabled,
-        level: (next as any).level ?? 1,
-      } as any);
-    },
-
-    setResult(r) {
-      lastResult = r;
-    },
-
+       const _exhaustive: never = to;
+       return _exhaustive;
+     },
     getResult() {
       return lastResult;
     },
-  };
-
-  // 初期表示
-  router.go("start");
-  return router;
-}
+    setResult(r) {
+      lastResult = r;
+    },
+     getSettings() {
+       return settings;
+     },
+     setSettings(next) {
+       settings = next;
+       saveSettings(settings);
+     },
+   };
+ 
+   return router;
+ }
