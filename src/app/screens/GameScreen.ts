@@ -7,7 +7,8 @@ import { startLoop } from "../../game/engine/gameLoop";
 export function GameScreen(router: Router): HTMLElement {
   const wrap = document.createElement("div");
   wrap.style.display = "grid";
-  wrap.style.gridTemplateRows = "auto auto 1fr auto";
+  // D-pad をレイアウトから外して absolute で重ねるので、最下段(row)を廃止
+  wrap.style.gridTemplateRows = "auto auto 1fr";
   wrap.style.width = "100%";
   wrap.style.background = "white";
   wrap.style.position = "relative";
@@ -78,12 +79,19 @@ export function GameScreen(router: Router): HTMLElement {
   const main = document.createElement("div");
   main.style.display = "grid";
   main.style.placeItems = "center";
-  main.style.padding = "8px 10px";
+  // main が 1fr の高さの中で正しく縮むために必須
+  main.style.minHeight = "0";
+  // 上下を少し詰めて 1画面内に収めやすくする
+  main.style.padding = "6px";
   main.style.overflow = "hidden";
 
   const canvas = document.createElement("canvas");
-  canvas.style.width = "min(92vmin, 720px)";
-  canvas.style.height = "min(92vmin, 720px)";
+  // 親(main)の中で「できるだけ大きく」正方形を維持する
+  canvas.style.maxWidth = "100%";
+  canvas.style.maxHeight = "100%";
+  canvas.style.width = "min(100%, 720px)";
+  canvas.style.height = "min(100%, 720px)";
+  (canvas.style as any).aspectRatio = "1 / 1";
   canvas.style.display = "block";
   // 重要：iOSでスクロール/ズームに奪われない
   canvas.style.touchAction = "none";
@@ -102,9 +110,19 @@ export function GameScreen(router: Router): HTMLElement {
   dpad.style.gridTemplateColumns = "64px 64px 64px";
   dpad.style.gridTemplateRows = "64px 64px 64px";
   dpad.style.gap = "10px";
-  dpad.style.userSelect = "none";
-  (dpad.style as any).WebkitUserSelect = "none";
-  (dpad.style as any).WebkitTouchCallout = "none";
+
+  // レイアウトから外して、左下に固定表示
+  dpadWrap.style.position = "absolute";
+  dpadWrap.style.left = "12px";
+  dpadWrap.style.bottom = "12px";
+  dpadWrap.style.zIndex = "50";
+  dpadWrap.style.padding = "10px";   
+  dpadWrap.style.borderRadius = "14px";
+  dpadWrap.style.background = "rgba(255,255,255,0.0)";
+
+  // pointerがcoarse(=タッチ)の端末だけ表示（PCでは邪魔になりやすい）
+  const isTouch = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+  dpadWrap.style.display = isTouch ? "grid" : "none";
 
   const makeBtn = (label: string) => {
     const b = document.createElement("button");
