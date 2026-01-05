@@ -1,368 +1,361 @@
-// engine.ts
 import { createRenderer } from "../render/renderer";
+import type {
+  Engine,
+  EngineOptions,
+  GameResult,
+  GameState,
+  MazeState,
+  Direction,
+} from "./state";
+import { createSfx } from "../audio/sfx";
 
-export type Dir = "up" | "down" | "left" | "right";
-export type Vec2 = { x: number; y: number };
-
-export type GameResult = {
-  level: number;
-  timeSec: number;
-  score: number;
-  collected: number;
-  total: number;
-  hintEnabled: boolean;
+const DIRS: Record<Direction, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -1 },
+  down: { dx: 0, dy: 1 },
+  left: { dx: -1, dy: 0 },
+  right: { dx: 1, dy: 0 },
 };
 
-export type EnemyState = {
-  pos: Vec2;
-  dir: Dir;
-};
-
-export type MazeState = {
-  w: number;
-  h: number;
-  grid: string[]; // '#' wall, '.' pellet, ' ' empty
-  tile: number;
-  pellets: boolean[][];
-  letters: { pos: Vec2; char: string; collected: boolean }[];
-  goal: Vec2;
-};
-
-export type GameState = {
-  running: boolean;
-  hintEnabled: boolean;
-  level: number;
-
-  timeSec: number;
-  score: number;
-
-  // HUD向け
-  totalLetters: number;
-  collectedLetters: number;
-  remainingLetters: number;
-  nextChar: string;
-
-  // entities
-  maze: MazeState;
-  player: { pos: Vec2; dir: Dir };
-  enemy: EnemyState;
-};
-
-export type Engine = {
-  update: (dtSec: number) => void;
-  render: () => void;
-  dispose: () => void;
-  getState: () => GameState;
-};
-
-type CreateEngineOpts = {
-  canvas: HTMLCanvasElement;
-  hintEnabled: boolean;
-  level: number;
-  onExit?: () => void;
-  onResult?: (result: GameResult) => void;
-};
-
-const DIRS: Record<Dir, Vec2> = {
-  up: { x: 0, y: -1 },
-  down: { x: 0, y: 1 },
-  left: { x: -1, y: 0 },
-  right: { x: 1, y: 0 },
-};
-
-function inBounds(m: MazeState, x: number, y: number) {
-  return x >= 0 && y >= 0 && x < m.w && y < m.h;
-}
-function isWall(m: MazeState, x: number, y: number) {
-  if (!inBounds(m, x, y)) return true;
-  return m.grid[y][x] === "#";
-}
-function canMove(m: MazeState, x: number, y: number) {
-  return inBounds(m, x, y) && !isWall(m, x, y);
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
 }
 
-function makeLevel(level: number): {
-  grid: string[];
-  playerStart: Vec2;
-  enemyStart: Vec2;
-  goal: Vec2;
-  letters: { pos: Vec2; char: string }[];
-} {
-  // ざっくり「口」のような迷路（あなたのスクショに近い雰囲気）
-  // level によって少しだけ変える
-  const base = [
-    "#############",
-    "#...#.....#.G#",
-    "#.#.#.###.#..#",
-    "#.#...#...#..#",
-    "#.###.#.###..#",
-    "#.....#......#",
-    "#############",
-  ];
-
-  const base2 = [
-    "#############",
-    "#...#.....#..#",
-    "#.#.#.###.#.G#",
-    "#.#...#...#..#",
-    "#.###.#.###..#",
-    "#.....#......#",
-    "#############",
-  ];
-
-  const grid = level === 2 ? base2 : base;
-
-  const playerStart = { x: 1, y: 1 };
-  const enemyStart = { x: 11, y: 5 };
-  const goal = findChar(grid, "G") ?? { x: 11, y: 1 };
-
-  // ひらがな（例）。本番はここを差し替えればOK
-  const letters =
-    level === 2
-      ? [
-          { pos: { x: 3, y: 1 }, char: "か" },
-          { pos: { x: 7, y: 1 }, char: "き" },
-          { pos: { x: 5, y: 3 }, char: "く" },
-          { pos: { x: 3, y: 5 }, char: "け" },
-          { pos: { x: 7, y: 5 }, char: "こ" },
-        ]
-      : [
-          { pos: { x: 6, y: 1 }, char: "あ" },
-          { pos: { x: 5, y: 3 }, char: "い" },
-          { pos: { x: 7, y: 3 }, char: "う" },
-          { pos: { x: 5, y: 5 }, char: "え" },
-          { pos: { x: 7, y: 5 }, char: "お" },
-        ];
-
-  return { grid, playerStart, enemyStart, goal, letters };
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function findChar(grid: string[], ch: string): Vec2 | null {
+function normalizeGrid(grid: string[]): string[] {
+  const w = Math.max(1, ...grid.map((r) => r.length));
+  return grid.map((r) => r.padEnd(w, "#"));
+}
+
+function buildWalkable(grid: string[]): boolean[][] {
+  const h = grid.length;
+  const w = grid[0]?.length ?? 0;
+  const walkable: boolean[][] = Array.from({ length: h }, () =>
+    Array(w).fill(false),
+  );
+  for (let y = 0; y < h; y++) {
+    const row = grid[y] ?? "";
+    for (let x = 0; x < w; x++) {
+      const c = row[x] ?? "#";
+      walkable[y][x] = c !== "#";
+    }
+  }
+  return walkable;
+}
+
+function findChar(grid: string[], ch: string): { x: number; y: number } | null {
   for (let y = 0; y < grid.length; y++) {
-    const x = grid[y].indexOf(ch);
+    const row = grid[y] ?? "";
+    const x = row.indexOf(ch);
     if (x >= 0) return { x, y };
   }
   return null;
 }
 
-function buildMaze(level: number): {
-  maze: MazeState;
-  playerStart: Vec2;
-  enemyStart: Vec2;
-} {
-  const { grid, playerStart, enemyStart, goal, letters } = makeLevel(level);
+function replaceChar(grid: string[], from: string, to: string): string[] {
+  return grid.map((row) => row.split(from).join(to));
+}
 
-  const h = grid.length;
-  const w = grid[0]?.length ?? 0;
-  const tile = 48;
+// --- Maze templates ---
+// Lv1/Lv2は「密度・幅感」だけ変える（後でlv1.ts/lv2.tsに差し替えてもOK）
+const MAZE_TEMPLATES: Record<number, string[][]> = {
+  1: [
+    normalizeGrid([
+      "############",
+      "#S....#....#",
+      "#.##..#..##.#",
+      "#....a#b....#",
+      "####..#..####",
+      "#....c#d....#",
+      "#.##..#..##.#",
+      "#....#....G.#",
+      "############",
+    ]),
+    normalizeGrid([
+      "############",
+      "#S....#....#",
+      "#.##..#..##.#",
+      "#....a#.....#",
+      "####..#.#####",
+      "#....b#c....#",
+      "#.##..#..##.#",
+      "#..d..#..G.e#",
+      "############",
+    ]),
+  ],
+  2: [
+    normalizeGrid([
+      "###############",
+      "#S.....#......#",
+      "#.###..#..###..#",
+      "#..a...#...b...#",
+      "###.#######.####",
+      "#.....c...#....#",
+      "#.#####.#.#.##.#",
+      "#..d....#....G.#",
+      "#.#####.#.#####.#",
+      "#....e..#.......#",
+      "###############",
+    ]),
+    normalizeGrid([
+      "###############",
+      "#S......#.....#",
+      "#.###.###.###.#",
+      "#..a..#....b..#",
+      "###.#.#.#####.#",
+      "#...#.#..c....#",
+      "#.###.#####.###",
+      "#..d.....#...G#",
+      "#.#####.#.###.#",
+      "#....e..#.....#",
+      "###############",
+    ]),
+  ],
+};
 
-  const pellets: boolean[][] = Array.from({ length: h }, (_, y) =>
-    Array.from({ length: w }, (_, x) => grid[y][x] === ".")
-  );
+function makeMaze(level: number, hintEnabled: boolean): MazeState {
+  const grids = MAZE_TEMPLATES[level] ?? MAZE_TEMPLATES[1];
+  const grid0 = pick(grids);
+  const h = grid0.length;
+  const w = grid0[0]?.length ?? 1;
 
-  const maze: MazeState = {
+  const start = findChar(grid0, "S") ?? { x: 1, y: 1 };
+  const goal = findChar(grid0, "G") ?? { x: w - 2, y: h - 2 };
+
+  // letters placeholders a-e -> hiragana
+  const kanaSets: string[][] = [
+    ["あ", "い", "う", "え", "お"],
+    ["か", "き", "く", "け", "こ"],
+    ["さ", "し", "す", "せ", "そ"],
+    ["た", "ち", "つ", "て", "と"],
+    ["な", "に", "ぬ", "ね", "の"],
+    ["は", "ひ", "ふ", "へ", "ほ"],
+    ["ま", "み", "む", "め", "も"],
+    ["ら", "り", "る", "れ", "ろ"],
+  ];
+  const lettersKana =
+    level >= 2 ? pick(kanaSets.filter((s) => s.length === 5)) : kanaSets[0];
+
+  const letters: MazeState["letters"] = [];
+  const slots = ["a", "b", "c", "d", "e"] as const;
+  for (let i = 0; i < slots.length; i++) {
+    const pos = findChar(grid0, slots[i]);
+    if (!pos) continue;
+    letters.push({ x: pos.x, y: pos.y, ch: lettersKana[i], collected: false });
+  }
+
+  // Sは通路化（.`), Gは残す（rendererがG表示する）
+  const grid = replaceChar(grid0, "S", ".");
+  const walkable = buildWalkable(grid);
+
+  // pellets: '.' のみ置く（letters/開始/ゴールは除外）
+  const pellets: Array<{ x: number; y: number; eaten: boolean }> = [];
+  const isLetterCell = (x: number, y: number) =>
+    letters.some((l) => l.x === x && l.y === y);
+
+  for (let y = 0; y < h; y++) {
+    const row = grid[y] ?? "";
+    for (let x = 0; x < w; x++) {
+      if (!walkable[y]?.[x]) continue;
+      const c = row[x] ?? "#";
+      if (c !== ".") continue;
+      if (
+        (x === start.x && y === start.y) ||
+        (x === goal.x && y === goal.y) ||
+        isLetterCell(x, y)
+      )
+        continue;
+      pellets.push({ x, y, eaten: false });
+    }
+  }
+
+  return {
     w,
     h,
-    grid: grid.map((row) => row.replace(/G/g, " ")), // Gは別管理
-    tile,
-    pellets,
-    letters: letters.map((l) => ({ ...l, collected: false })),
+    grid,
+    walkable,
+    letters,
+    start,
     goal,
+    player: { x: start.x, y: start.y, dir: "right" },
+    pellets,
+    nextIndex: 0,
+    score: 0,
+    time: 0,
+    finished: false,
+    flash: 0,
+    mouthOpen: false,
+    mouthTimer: 0,
+    lastEat: 0,
+    hintEnabled,
+    enemies: [], // 今は空でOK
   };
-
-  return { maze, playerStart, enemyStart };
 }
 
-function opposite(d: Dir): Dir {
-  if (d === "up") return "down";
-  if (d === "down") return "up";
-  if (d === "left") return "right";
-  return "left";
-}
+export type { GameResult } from "./state";
 
-function chooseEnemyDir(m: MazeState, enemy: EnemyState): Dir {
-  // “追跡なし”：前進できるなら前進優先、ダメなら曲がる
-  const cur = enemy.dir;
-  const options = ["up", "down", "left", "right"].filter((d) => {
-    const v = DIRS[d as Dir];
-    const nx = enemy.pos.x + v.x;
-    const ny = enemy.pos.y + v.y;
-    if (!canMove(m, nx, ny)) return false;
-    // なるべくUターンしない
-    if (d === opposite(cur)) return false;
-    return true;
-  });
-
-  if (options.length > 0) {
-    // たまに曲がる（見た目の変化用）
-    if (Math.random() < 0.25) {
-      const randomDir = options[(Math.random() * options.length) | 0] as Dir;
-      return randomDir;
-    }
-    // 前進できるなら前進
-    const vcur = DIRS[cur];
-    if (canMove(m, enemy.pos.x + vcur.x, enemy.pos.y + vcur.y)) return cur;
-    const randomDir = options[(Math.random() * options.length) | 0] as Dir;
-    return randomDir;
-  }
-
-  // Uターンしか無い場合
-  const back = opposite(cur);
-  const v = DIRS[back];
-  if (canMove(m, enemy.pos.x + v.x, enemy.pos.y + v.y)) return back;
-
-  return cur;
-}
-
-function updateHud(state: GameState) {
-  const total = state.maze.letters.length;
-  const collected = state.maze.letters.filter((l) => l.collected).length;
-  state.totalLetters = total;
-  state.collectedLetters = collected;
-  state.remainingLetters = Math.max(0, total - collected);
-
-  // 次に取るべき文字
-  const next = state.maze.letters.find((l) => !l.collected);
-  state.nextChar = next ? next.char : "-";
-}
-
-function tryCollect(state: GameState) {
-  const { maze, player } = state;
-
-  // pellet
-  if (maze.pellets[player.pos.y]?.[player.pos.x]) {
-    maze.pellets[player.pos.y][player.pos.x] = false;
-    state.score += 1;
-  }
-
-  // letters
-  for (const l of maze.letters) {
-    if (!l.collected && l.pos.x === player.pos.x && l.pos.y === player.pos.y) {
-      l.collected = true;
-      state.score += 5;
-      break;
-    }
-  }
-}
-
-function isClear(state: GameState) {
-  const allCollected = state.maze.letters.every((l) => l.collected);
-  const onGoal = state.player.pos.x === state.maze.goal.x && state.player.pos.y === state.maze.goal.y;
-  return allCollected && onGoal;
-}
-
-export function createEngine(opts: CreateEngineOpts): Engine {
-  const { maze, playerStart, enemyStart } = buildMaze(opts.level);
+export function createEngine(opts: EngineOptions): Engine {
+  const sfx = createSfx();
 
   const state: GameState = {
+    hintEnabled: opts.hintEnabled ?? true,
     running: true,
-    hintEnabled: !!opts.hintEnabled,
-    level: opts.level,
-
-    timeSec: 0,
-    score: 0,
-
-    totalLetters: 0,
-    collectedLetters: 0,
-    remainingLetters: 0,
-    nextChar: "-",
-
-    maze,
-    player: { pos: { ...playerStart }, dir: "right" },
-    enemy: { pos: { ...enemyStart }, dir: "left" },
+    level: opts.level ?? 1,
+    maze: undefined,
+    result: null,
   };
 
-  updateHud(state);
+  state.maze = makeMaze(state.level, state.hintEnabled);
 
-  const renderer = createRenderer(opts.canvas, state as any);
+  const renderer = createRenderer(opts.canvas, state);
 
-  // --- input ---
-  let pendingDir: Dir | null = null;
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (!state.running) return;
-    const key = e.key;
-    if (key === "ArrowUp") pendingDir = "up";
-    else if (key === "ArrowDown") pendingDir = "down";
-    else if (key === "ArrowLeft") pendingDir = "left";
-    else if (key === "ArrowRight") pendingDir = "right";
-  };
-
-  window.addEventListener("keydown", onKeyDown);
-
-  // --- fixed tick ---
-  const fixedStep = 1 / 12; // 12 ticks per sec（グリッド移動向け）
+  // tick: 方向入力が来たら、固定間隔で1マスずつ進む
+  const STEP_SEC = 0.12;
   let acc = 0;
 
-  function stepOnce() {
-    // player move
-    if (pendingDir) state.player.dir = pendingDir;
+  const pelletTotal = state.maze.pellets.length;
 
-    const d = DIRS[state.player.dir];
-    const nx = state.player.pos.x + d.x;
-    const ny = state.player.pos.y + d.y;
-    if (canMove(state.maze, nx, ny)) {
-      state.player.pos.x = nx;
-      state.player.pos.y = ny;
-      tryCollect(state);
-      updateHud(state);
+  function pelletAt(x: number, y: number) {
+    return state.maze!.pellets.find((p) => p.x === x && p.y === y) ?? null;
+  }
+
+  function tryEatPellet() {
+    const m = state.maze!;
+    const p = pelletAt(m.player.x, m.player.y);
+    if (p && !p.eaten) {
+      p.eaten = true;
+      m.score += 1;
+      m.lastEat = 0.15;
+      sfx.pellet();
     }
+  }
 
-    // enemy move (追跡なし、曲がるだけ)
-    state.enemy.dir = chooseEnemyDir(state.maze, state.enemy);
-    const ed = DIRS[state.enemy.dir];
-    const ex = state.enemy.pos.x + ed.x;
-    const ey = state.enemy.pos.y + ed.y;
-    if (canMove(state.maze, ex, ey)) {
-      state.enemy.pos.x = ex;
-      state.enemy.pos.y = ey;
-    }
-
-    // hit check（当たったら即終了：仮）
+  function tryCollectLetter() {
+    const m = state.maze!;
+    const target = m.letters[m.nextIndex];
+    if (!target) return;
     if (
-      state.enemy.pos.x === state.player.pos.x &&
-      state.enemy.pos.y === state.player.pos.y
+      m.player.x === target.x &&
+      m.player.y === target.y &&
+      !target.collected
     ) {
-      state.running = false;
-      opts.onExit?.(); // とりあえず start に戻すなど運用に合わせて
-      return;
+      target.collected = true;
+      m.nextIndex = clamp(m.nextIndex + 1, 0, m.letters.length);
+      m.lastEat = 0.2;
+      sfx.kana();
     }
+  }
 
-    // clear
-    if (isClear(state)) {
-      state.running = false;
+  function checkFinish() {
+    const m = state.maze!;
+    if (m.finished) return;
+
+    const allLetters = m.letters.length
+      ? m.letters.every((l) => l.collected)
+      : true;
+
+    if (allLetters && m.player.x === m.goal.x && m.player.y === m.goal.y) {
+      m.finished = true;
+      m.flash = 0.9;
+      sfx.clear();
+
+      const pelletsEaten = m.pellets.reduce((n, p) => n + (p.eaten ? 1 : 0), 0);
+
       const result: GameResult = {
+        ok: true,
+        time: m.time,
+        score: m.score,
+        pelletsEaten,
+        pelletsTotal: pelletTotal,
         level: state.level,
-        timeSec: Math.floor(state.timeSec),
-        score: state.score,
-        collected: state.collectedLetters,
-        total: state.totalLetters,
-        hintEnabled: state.hintEnabled,
       };
+      state.result = result;
       opts.onResult?.(result);
     }
   }
 
-  function update(dtSec: number) {
-    if (!state.running) return;
-    state.timeSec += dtSec;
+  function canMoveTo(x: number, y: number) {
+    const m = state.maze!;
+    if (x < 0 || y < 0 || x >= m.w || y >= m.h) return false;
+    return !!m.walkable[y]?.[x];
+  }
 
-    acc += dtSec;
-    while (acc >= fixedStep) {
-      stepOnce();
-      acc -= fixedStep;
-      if (!state.running) break;
+  function stepMove(dir: Direction) {
+    const m = state.maze!;
+    const { dx, dy } = DIRS[dir];
+    const nx = m.player.x + dx;
+    const ny = m.player.y + dy;
+
+    if (canMoveTo(nx, ny)) {
+      m.player.x = nx;
+      m.player.y = ny;
+      m.player.dir = dir;
+
+      tryEatPellet();
+      tryCollectLetter();
+      checkFinish();
+    } else {
+      // 壁でも向きだけ更新（見た目の方向）
+      m.player.dir = dir;
     }
   }
 
-  function render() {
-    renderer.render();
-  }
+  let pendingDir: Direction | null = null;
 
-  function dispose() {
-    window.removeEventListener("keydown", onKeyDown);
-    renderer.dispose?.();
-  }
+  return {
+    getState() {
+      return state;
+    },
 
-  return { update, render, dispose, getState: () => state };
+    setInput(dir: Direction | null) {
+      pendingDir = dir;
+    },
+
+    update(dt: number) {
+      const m = state.maze!;
+      if (!state.running) return;
+
+      // time
+      m.time += dt;
+      m.mouthTimer += dt;
+      if (m.lastEat > 0) m.lastEat = Math.max(0, m.lastEat - dt);
+      if (m.flash > 0) m.flash = Math.max(0, m.flash - dt);
+
+      // simple mouth animation
+      if (m.mouthTimer >= 0.12) {
+        m.mouthTimer = 0;
+        m.mouthOpen = !m.mouthOpen;
+      }
+
+      if (m.finished) return;
+
+      acc += dt;
+      while (acc >= STEP_SEC) {
+        acc -= STEP_SEC;
+        if (pendingDir) stepMove(pendingDir);
+      }
+    },
+
+    render() {
+      renderer.render();
+    },
+
+    dispose() {
+      sfx.init();
+    },
+
+    reset(level?: number) {
+      state.level = level ?? state.level;
+      state.maze = makeMaze(state.level, state.hintEnabled);
+      state.result = null;
+      acc = 0;
+    },
+
+    setHintEnabled(on: boolean) {
+      state.hintEnabled = on;
+      if (state.maze) state.maze.hintEnabled = on;
+    },
+  };
 }
